@@ -1,3 +1,5 @@
-<svg width="180" height="180" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
-<rect width="180" height="180" rx="36" fill="#FF3C00"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="14" fill="#0F766E"/>
+  <text x="32" y="42" font-family="Inter, system-ui, sans-serif" font-size="28" font-weight="700" fill="#FAF9F5" text-anchor="middle">Ez</text>
+  <circle cx="50" cy="50" r="7" fill="#EA580C"/>
 </svg>

@@ -62,16 +62,16 @@ export function AppShell({ children, title }: AppShellProps) {
           </div>
 
           <div className="flex items-center gap-1">
-            <Link
-              href="/settings"
-              className="hidden md:inline-flex"
-              aria-label="Settings"
-              data-testid="link-settings"
+            <Button
+              asChild
+              variant="ghost"
+              size="icon"
+              className="hidden md:inline-flex hover-elevate active-elevate-2"
             >
-              <Button variant="ghost" size="icon" className="hover-elevate active-elevate-2">
+              <Link href="/settings" aria-label="Settings" data-testid="link-settings">
                 <SettingsIcon className="h-[1.15rem] w-[1.15rem]" />
-              </Button>
-            </Link>
+              </Link>
+            </Button>
             <ThemeToggle />
           </div>
         </header>
