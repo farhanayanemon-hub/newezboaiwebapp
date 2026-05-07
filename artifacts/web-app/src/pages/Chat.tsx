@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { ChatTopBar } from "@/components/ChatTopBar";
-import { SidebarContent } from "@/components/Sidebar";
+import { AppShell } from "@/components/AppShell";
+import {
+  ChatTitleSlot,
+  ChatHeaderRight,
+} from "@/components/ChatHeaderControls";
 import { MessageList } from "@/components/MessageList";
 import { InputBar } from "@/components/InputBar";
 import { QuickActionChips } from "@/components/QuickActionChips";
@@ -34,9 +37,8 @@ interface PendingReply {
 
 export default function ChatPage() {
   const [input, setInput] = useState("");
-  // Thread-scoped streaming: track per-thread pending replies so switching
-  // threads while the fake AI "thinks" doesn't leak the typing indicator
-  // or stop button into an unrelated conversation.
+  // Thread-scoped streaming: switching threads while the fake AI "thinks"
+  // must not leak the typing indicator/stop button into another conversation.
   const [streamingThreadIds, setStreamingThreadIds] = useState<Set<string>>(
     () => new Set(),
   );
@@ -50,7 +52,6 @@ export default function ChatPage() {
   const setActiveThread = useChatStore((s) => s.setActiveThread);
   const activeThreadId = useChatStore((s) => s.activeThreadId);
 
-  // On mount: if there are threads but none active, pick the most recent
   useEffect(() => {
     if (!activeThreadId && threads.length > 0) {
       setActiveThread(threads[0].id);
@@ -86,7 +87,7 @@ export default function ChatPage() {
     if (!threadId) threadId = createThread();
     const targetThreadId = threadId;
 
-    if (pendingRepliesRef.current.has(targetThreadId)) return; // already streaming this thread
+    if (pendingRepliesRef.current.has(targetThreadId)) return;
 
     addMessage(targetThreadId, "user", trimmed);
     setInput("");
@@ -117,30 +118,17 @@ export default function ChatPage() {
     setInput((prev) => (prev ? `${prev}\n\n${template}` : template));
   };
 
-  const handleExamplePrompt = (template: string) => {
-    setInput(template);
-  };
+  const handleExamplePrompt = (template: string) => setInput(template);
 
   const showEmpty = !activeThread || messages.length === 0;
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-background">
-      <aside className="hidden lg:flex lg:w-72 lg:flex-shrink-0 border-r border-sidebar-border">
-        <SidebarContent />
-      </aside>
-
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <ChatTopBar />
-
-        <div className="flex flex-1 flex-col overflow-hidden">
-          {showEmpty ? (
-            <div className="flex-1 overflow-y-auto">
-              <EmptyState onPromptSelect={handleExamplePrompt} />
-            </div>
-          ) : (
-            <MessageList messages={messages} isTyping={isActiveStreaming} />
-          )}
-
+    <AppShell
+      headerCenter={<ChatTitleSlot />}
+      headerRight={<ChatHeaderRight />}
+      scrollContent={false}
+      footer={
+        <>
           <QuickActionChips onSelect={handleQuickAction} />
           <InputBar
             value={input}
@@ -150,8 +138,16 @@ export default function ChatPage() {
             onStop={handleStop}
             autoFocus
           />
+        </>
+      }
+    >
+      {showEmpty ? (
+        <div className="flex-1 overflow-y-auto">
+          <EmptyState onPromptSelect={handleExamplePrompt} />
         </div>
-      </div>
-    </div>
+      ) : (
+        <MessageList messages={messages} isTyping={isActiveStreaming} />
+      )}
+    </AppShell>
   );
 }
