@@ -17,10 +17,17 @@ interface InputBarProps {
 }
 
 const PHASE_HINTS = {
-  mic: "Voice input Phase 7 e ashbe",
-  camera: "Camera live Phase 8 e ashbe",
-  screen: "Screen share Phase 9 e ashbe",
-  file: "File upload Phase 6 e ashbe",
+  mic: "ভয়েস ইনপুট — Phase 7 এ আসবে",
+  camera: "ক্যামেরা — Phase 8 এ আসবে",
+  screen: "স্ক্রিন শেয়ার — Phase 9 এ আসবে",
+  file: "ফাইল আপলোড — Phase 6 এ আসবে",
+};
+
+const ARIA_LABELS = {
+  mic: "ভয়েস ইনপুট",
+  camera: "ক্যামেরা",
+  screen: "স্ক্রিন শেয়ার",
+  file: "ফাইল যোগ করুন",
 };
 
 export function InputBar({
@@ -53,12 +60,11 @@ export function InputBar({
   const iconButtons: Array<{
     key: keyof typeof PHASE_HINTS;
     icon: typeof Mic;
-    label: string;
   }> = [
-    { key: "mic", icon: Mic, label: "Voice input" },
-    { key: "camera", icon: Camera, label: "Camera" },
-    { key: "screen", icon: Monitor, label: "Screen share" },
-    { key: "file", icon: Paperclip, label: "File attach" },
+    { key: "mic", icon: Mic },
+    { key: "camera", icon: Camera },
+    { key: "screen", icon: Monitor },
+    { key: "file", icon: Paperclip },
   ];
 
   return (
@@ -72,21 +78,23 @@ export function InputBar({
         >
           {/* Left action buttons */}
           <div className="flex items-center gap-0.5 pb-0.5 pl-0.5">
-            {iconButtons.map(({ key, icon: Icon, label }) => (
+            {iconButtons.map(({ key, icon: Icon }) => (
               <Tooltip key={key}>
                 <TooltipTrigger asChild>
                   <Button
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8 rounded-lg text-muted-foreground hover-elevate active-elevate-2"
-                    aria-label={label}
+                    aria-label={ARIA_LABELS[key]}
                     onClick={() => toast.info(PHASE_HINTS[key])}
                     data-testid={`button-action-${key}`}
                   >
                     <Icon className="h-4 w-4" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent side="top">{PHASE_HINTS[key]}</TooltipContent>
+                <TooltipContent side="top" lang="bn">
+                  {PHASE_HINTS[key]}
+                </TooltipContent>
               </Tooltip>
             ))}
           </div>
@@ -128,13 +136,13 @@ export function InputBar({
                     size="icon"
                     className="h-9 w-9 rounded-xl bg-destructive hover:bg-destructive/90 hover-elevate active-elevate-2"
                     onClick={onStop}
-                    aria-label="Stop generation"
+                    aria-label="থামান"
                     data-testid="button-stop"
                   >
                     <StopCircle className="h-4 w-4" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent side="top">Stop</TooltipContent>
+                <TooltipContent side="top" lang="bn">থামান</TooltipContent>
               </Tooltip>
             ) : (
               <Tooltip>
@@ -143,14 +151,14 @@ export function InputBar({
                     size="icon"
                     disabled={!canSend}
                     onClick={onSend}
-                    aria-label="Send message"
+                    aria-label="পাঠান"
                     className="h-9 w-9 rounded-xl shadow-sm shadow-primary/20 hover-elevate active-elevate-2"
                     data-testid="button-send"
                   >
                     <Send className="h-4 w-4" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent side="top">Pathan (Enter)</TooltipContent>
+                <TooltipContent side="top" lang="bn">পাঠান (Enter)</TooltipContent>
               </Tooltip>
             )}
           </div>
