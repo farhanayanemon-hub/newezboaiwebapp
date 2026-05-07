@@ -109,9 +109,10 @@ function MessageBubbleImpl({ message }: MessageBubbleProps) {
             remarkPlugins={[remarkGfm]}
             rehypePlugins={[[rehypeSanitize, sanitizeSchema]]}
             components={{
-              code({ inline, className, children, ...props }: any) {
+              code({ className, children, ...props }) {
                 const match = /language-(\w+)/.exec(className || "");
                 const lang = match?.[1];
+                const inline = (props as { inline?: boolean }).inline;
                 if (!inline && lang) {
                   return (
                     <SyntaxHighlighter
