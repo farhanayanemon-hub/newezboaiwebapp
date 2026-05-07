@@ -27,10 +27,20 @@ function greet(name: string): string {
 
 Ekhon shudhu UI testing er jonno ei placeholder dekhachi.`;
 
+interface PendingReply {
+  threadId: string;
+  timerId: number;
+}
+
 export default function ChatPage() {
   const [input, setInput] = useState("");
-  const [isStreaming, setIsStreaming] = useState(false);
-  const fakeTimerRef = useRef<number | null>(null);
+  // Thread-scoped streaming: track per-thread pending replies so switching
+  // threads while the fake AI "thinks" doesn't leak the typing indicator
+  // or stop button into an unrelated conversation.
+  const [streamingThreadIds, setStreamingThreadIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const pendingRepliesRef = useRef<Map<string, PendingReply>>(new Map());
 
   const activeThread = useActiveThread();
   const messages = useActiveMessages();
@@ -48,40 +58,59 @@ export default function ChatPage() {
   }, [activeThreadId, threads, setActiveThread]);
 
   useEffect(() => {
+    const pending = pendingRepliesRef.current;
     return () => {
-      if (fakeTimerRef.current) window.clearTimeout(fakeTimerRef.current);
+      pending.forEach((p) => window.clearTimeout(p.timerId));
+      pending.clear();
     };
   }, []);
 
+  const isActiveStreaming = activeThreadId
+    ? streamingThreadIds.has(activeThreadId)
+    : false;
+
+  const markStreaming = (threadId: string, on: boolean) => {
+    setStreamingThreadIds((prev) => {
+      const next = new Set(prev);
+      if (on) next.add(threadId);
+      else next.delete(threadId);
+      return next;
+    });
+  };
+
   const handleSend = () => {
     const trimmed = input.trim();
-    if (!trimmed || isStreaming) return;
+    if (!trimmed) return;
 
     let threadId = activeThreadId;
-    if (!threadId) {
-      threadId = createThread();
-    }
-
+    if (!threadId) threadId = createThread();
     const targetThreadId = threadId;
+
+    if (pendingRepliesRef.current.has(targetThreadId)) return; // already streaming this thread
+
     addMessage(targetThreadId, "user", trimmed);
     setInput("");
 
-    // Fake AI response after 1.5s — Phase 3 will replace this
-    setIsStreaming(true);
-    fakeTimerRef.current = window.setTimeout(() => {
-      // Inject into the target thread regardless of active thread; user expects
-      // the reply to land in the conversation they sent it to.
+    markStreaming(targetThreadId, true);
+    const timerId = window.setTimeout(() => {
       addMessage(targetThreadId, "assistant", FAKE_AI_RESPONSE);
-      setIsStreaming(false);
+      pendingRepliesRef.current.delete(targetThreadId);
+      markStreaming(targetThreadId, false);
     }, 1500);
+    pendingRepliesRef.current.set(targetThreadId, {
+      threadId: targetThreadId,
+      timerId,
+    });
   };
 
   const handleStop = () => {
-    if (fakeTimerRef.current) {
-      window.clearTimeout(fakeTimerRef.current);
-      fakeTimerRef.current = null;
+    if (!activeThreadId) return;
+    const pending = pendingRepliesRef.current.get(activeThreadId);
+    if (pending) {
+      window.clearTimeout(pending.timerId);
+      pendingRepliesRef.current.delete(activeThreadId);
     }
-    setIsStreaming(false);
+    markStreaming(activeThreadId, false);
   };
 
   const handleQuickAction = (template: string) => {
@@ -109,7 +138,7 @@ export default function ChatPage() {
               <EmptyState onPromptSelect={handleExamplePrompt} />
             </div>
           ) : (
-            <MessageList messages={messages} isTyping={isStreaming} />
+            <MessageList messages={messages} isTyping={isActiveStreaming} />
           )}
 
           <QuickActionChips onSelect={handleQuickAction} />
@@ -117,7 +146,7 @@ export default function ChatPage() {
             value={input}
             onChange={setInput}
             onSend={handleSend}
-            isStreaming={isStreaming}
+            isStreaming={isActiveStreaming}
             onStop={handleStop}
             autoFocus
           />
