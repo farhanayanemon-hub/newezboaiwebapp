@@ -67,6 +67,11 @@ export function AppShell({
             <div className="lg:hidden">
               <Logo size="sm" />
             </div>
+            {headerCenter && (
+              <div className="hidden lg:block">
+                <Logo size="sm" />
+              </div>
+            )}
             {title && !headerCenter && (
               <h1
                 className="hidden lg:block text-base font-medium text-foreground"
