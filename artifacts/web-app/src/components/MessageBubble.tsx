@@ -2,6 +2,7 @@ import { memo, useState } from "react";
 import { Copy, Check, Sparkles, User as UserIcon } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark, oneLight } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { motion } from "framer-motion";
@@ -20,6 +21,15 @@ function formatTime(ts: number): string {
   const d = new Date(ts);
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
+
+const sanitizeSchema = {
+  ...defaultSchema,
+  attributes: {
+    ...defaultSchema.attributes,
+    code: [...(defaultSchema.attributes?.code ?? []), ["className"]],
+    span: [...(defaultSchema.attributes?.span ?? []), ["className"]],
+  },
+};
 
 function MessageBubbleImpl({ message }: MessageBubbleProps) {
   const [copied, setCopied] = useState(false);
@@ -97,6 +107,7 @@ function MessageBubbleImpl({ message }: MessageBubbleProps) {
         >
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
+            rehypePlugins={[[rehypeSanitize, sanitizeSchema]]}
             components={{
               code({ inline, className, children, ...props }: any) {
                 const match = /language-(\w+)/.exec(className || "");

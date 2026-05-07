@@ -1,117 +1,128 @@
-import { Sparkles, FileText, CloudSun, Mic, Camera, Paperclip } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { AppShell } from "@/components/AppShell";
+import { useEffect, useRef, useState } from "react";
+import { ChatTopBar } from "@/components/ChatTopBar";
+import { SidebarContent } from "@/components/Sidebar";
+import { MessageList } from "@/components/MessageList";
+import { InputBar } from "@/components/InputBar";
+import { QuickActionChips } from "@/components/QuickActionChips";
+import { EmptyState } from "@/components/EmptyState";
+import {
+  useChatStore,
+  useActiveThread,
+  useActiveMessages,
+} from "@/stores/chatStore";
 
-const examplePrompts = [
-  {
-    icon: CloudSun,
-    title: "Aajker abhawa",
-    bangla: "আজকের আবহাওয়া কেমন?",
-    hint: "Real-time information",
-  },
-  {
-    icon: FileText,
-    title: "PDF summarize",
-    bangla: "এই PDF টা summarize করো",
-    hint: "Document analysis",
-  },
-];
+const FAKE_AI_RESPONSE = `**Phase 3 e real AI ashbe** — ekhon eta just placeholder.
 
-const upcomingFeatures = [
-  { icon: Mic, label: "Voice chat" },
-  { icon: Camera, label: "Live camera" },
-  { icon: Paperclip, label: "File upload" },
-];
+Ami apnar message peyechi. Phase 3 unlock hole apni:
+- OpenAI / Anthropic / Gemini / xAI Grok / OpenRouter / Replicate — ja chaichen sob plug korte parben
+- Bangla, Banglish, English — sob bhashay reply pabe
+- Code, math, translation, summarization — sob handle korbo
+
+\`\`\`typescript
+// Sample code block formatting test
+function greet(name: string): string {
+  return \`Hello \${name}, ami EzboAI!\`;
+}
+\`\`\`
+
+Ekhon shudhu UI testing er jonno ei placeholder dekhachi.`;
 
 export default function ChatPage() {
+  const [input, setInput] = useState("");
+  const [isStreaming, setIsStreaming] = useState(false);
+  const fakeTimerRef = useRef<number | null>(null);
+
+  const activeThread = useActiveThread();
+  const messages = useActiveMessages();
+  const createThread = useChatStore((s) => s.createThread);
+  const addMessage = useChatStore((s) => s.addMessage);
+  const threads = useChatStore((s) => s.threads);
+  const setActiveThread = useChatStore((s) => s.setActiveThread);
+  const activeThreadId = useChatStore((s) => s.activeThreadId);
+
+  // On mount: if there are threads but none active, pick the most recent
+  useEffect(() => {
+    if (!activeThreadId && threads.length > 0) {
+      setActiveThread(threads[0].id);
+    }
+  }, [activeThreadId, threads, setActiveThread]);
+
+  useEffect(() => {
+    return () => {
+      if (fakeTimerRef.current) window.clearTimeout(fakeTimerRef.current);
+    };
+  }, []);
+
+  const handleSend = () => {
+    const trimmed = input.trim();
+    if (!trimmed || isStreaming) return;
+
+    let threadId = activeThreadId;
+    if (!threadId) {
+      threadId = createThread();
+    }
+
+    const targetThreadId = threadId;
+    addMessage(targetThreadId, "user", trimmed);
+    setInput("");
+
+    // Fake AI response after 1.5s — Phase 3 will replace this
+    setIsStreaming(true);
+    fakeTimerRef.current = window.setTimeout(() => {
+      // Inject into the target thread regardless of active thread; user expects
+      // the reply to land in the conversation they sent it to.
+      addMessage(targetThreadId, "assistant", FAKE_AI_RESPONSE);
+      setIsStreaming(false);
+    }, 1500);
+  };
+
+  const handleStop = () => {
+    if (fakeTimerRef.current) {
+      window.clearTimeout(fakeTimerRef.current);
+      fakeTimerRef.current = null;
+    }
+    setIsStreaming(false);
+  };
+
+  const handleQuickAction = (template: string) => {
+    setInput((prev) => (prev ? `${prev}\n\n${template}` : template));
+  };
+
+  const handleExamplePrompt = (template: string) => {
+    setInput(template);
+  };
+
+  const showEmpty = !activeThread || messages.length === 0;
+
   return (
-    <AppShell title="EzboAI Chat">
-      <div className="mx-auto flex min-h-full max-w-3xl flex-col items-center justify-center px-4 py-10 sm:py-16">
-        {/* Hero */}
-        <div className="text-center">
-          <div className="mb-5 inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1 text-xs font-medium text-muted-foreground shadow-sm">
-            <Sparkles className="h-3 w-3 text-accent" />
-            <span>Phase 1 — Foundation Ready</span>
-          </div>
-          <h1 className="bg-gradient-to-br from-foreground via-foreground to-primary bg-clip-text text-4xl font-bold tracking-tight text-transparent sm:text-5xl">
-            EzboAI
-          </h1>
-          <p
-            className="mt-4 text-lg text-muted-foreground sm:text-xl"
-            lang="bn"
-            data-testid="text-tagline"
-          >
-            আপনার Bangla AI সহকারী
-          </p>
-          <p className="mt-2 text-sm text-muted-foreground/80">
-            Bangla, Banglish, ar English — jeta apnar comfortable
-          </p>
-        </div>
+    <div className="flex h-screen w-full overflow-hidden bg-background">
+      <aside className="hidden lg:flex lg:w-72 lg:flex-shrink-0 border-r border-sidebar-border">
+        <SidebarContent />
+      </aside>
 
-        {/* Example prompt cards */}
-        <div className="mt-10 grid w-full grid-cols-1 gap-3 sm:grid-cols-2">
-          {examplePrompts.map((prompt) => {
-            const Icon = prompt.icon;
-            return (
-              <Card
-                key={prompt.title}
-                className="group cursor-pointer hover-elevate active-elevate-2 transition-shadow"
-                data-testid={`card-example-${prompt.title.replace(/\s+/g, "-").toLowerCase()}`}
-              >
-                <CardContent className="p-4">
-                  <div className="flex items-start gap-3">
-                    <div className="mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                      <Icon className="h-4 w-4" />
-                    </div>
-                    <div className="flex-1 text-left">
-                      <p className="text-sm font-medium text-foreground" lang="bn">
-                        {prompt.bangla}
-                      </p>
-                      <p className="mt-1 text-xs text-muted-foreground">{prompt.hint}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <ChatTopBar />
 
-        {/* CTA */}
-        <div className="mt-8">
-          <Button
-            size="lg"
-            className="gap-2 px-6 hover-elevate active-elevate-2 shadow-md shadow-primary/20"
-            data-testid="button-start-chat"
-          >
-            <Sparkles className="h-4 w-4" />
-            <span lang="bn">নতুন Chat শুরু করুন</span>
-          </Button>
-        </div>
-
-        {/* Upcoming features hint */}
-        <div className="mt-12 w-full">
-          <div className="rounded-xl border border-dashed border-border bg-muted/30 px-5 py-4">
-            <p className="text-center text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              Coming in next phases
-            </p>
-            <div className="mt-3 flex flex-wrap justify-center gap-2">
-              {upcomingFeatures.map((feature) => {
-                const Icon = feature.icon;
-                return (
-                  <div
-                    key={feature.label}
-                    className="flex items-center gap-1.5 rounded-full bg-background px-3 py-1.5 text-xs text-muted-foreground border border-border"
-                  >
-                    <Icon className="h-3 w-3" />
-                    <span>{feature.label}</span>
-                  </div>
-                );
-              })}
+        <div className="flex flex-1 flex-col overflow-hidden">
+          {showEmpty ? (
+            <div className="flex-1 overflow-y-auto">
+              <EmptyState onPromptSelect={handleExamplePrompt} />
             </div>
-          </div>
+          ) : (
+            <MessageList messages={messages} isTyping={isStreaming} />
+          )}
+
+          <QuickActionChips onSelect={handleQuickAction} />
+          <InputBar
+            value={input}
+            onChange={setInput}
+            onSend={handleSend}
+            isStreaming={isStreaming}
+            onStop={handleStop}
+            autoFocus
+          />
         </div>
       </div>
-    </AppShell>
+    </div>
   );
 }
