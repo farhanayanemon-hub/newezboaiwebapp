@@ -4,6 +4,33 @@ Goal: `git push origin main` korlei VPS e auto deploy hobe (30-60 sec).
 
 ---
 
+## ⚠️ Step 0: GitHub Actions workflow file manually add korun
+
+Replit GitHub OAuth-er `workflow` scope nai, tai `.github/workflows/deploy.yml`
+auto-push hoy na. Apnake **ek bar** manually add korte hobe:
+
+**Option A — GitHub UI te (easiest):**
+1. Apnar repo te jan: https://github.com/YOUR_USER/newezboaiwebapp
+2. **Add file** → **Create new file**
+3. File name: `.github/workflows/deploy.yml`
+4. Content copy korun: `infrastructure/github-actions/deploy.yml` theke
+5. **Commit new file**
+
+**Option B — laptop theke (terminal):**
+```bash
+git clone https://github.com/YOUR_USER/newezboaiwebapp.git
+cd newezboaiwebapp
+mkdir -p .github/workflows
+cp infrastructure/github-actions/deploy.yml .github/workflows/deploy.yml
+git add .github/workflows/deploy.yml
+git commit -m "ci: add auto-deploy workflow"
+git push
+```
+
+Ek bar add korle, future push gulo Replit theke automatically deploy korbe.
+
+---
+
 ## 🎯 How It Works
 
 ```
