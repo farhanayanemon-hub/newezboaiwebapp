@@ -1,45 +1,47 @@
-# [Project name]
+# EzboAI — Bangla AI Personal Assistant
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+## Project Overview
 
-## Run & Operate
+**EzboAI** is a Bengali-speaking AI personal assistant web app. It runs in any modern browser (desktop or mobile), installable as a PWA. Hosted at **ezboai.com** (user-owned domain).
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
-- `pnpm run typecheck` — full typecheck across all packages
-- `pnpm run build` — typecheck + build all packages
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
+### Core features (12 phases)
+1. Foundation — React + Vite + PWA + EzboAI branding
+2. Chat UI — message bubbles, sidebar, input, quick actions
+3. AI backend — Replit AI Integration, streaming Bangla replies
+4. Conversation memory — PostgreSQL, long-term memory
+5. Quick actions — 8 one-click shortcuts
+6. File handling — PDF, Word, Excel, Image upload
+7. Voice — Bangla STT + TTS
+8. Camera live stream — vision AI
+9. Screen share — real-time screen help
+10. Reminders — Web Push notifications
+11. Browser automation — Playwright, AI does web tasks
+12. Polish + deploy — ezboai.com
 
-## Stack
+### Future tasks (deferred)
+- Windows Desktop App (Electron + Python, full PC control)
+- Android app (Flutter or Expo)
 
-- pnpm workspaces, Node.js 24, TypeScript 5.9
-- API: Express 5
-- DB: PostgreSQL + Drizzle ORM
-- Validation: Zod (`zod/v4`), `drizzle-zod`
-- API codegen: Orval (from OpenAPI spec)
-- Build: esbuild (CJS bundle)
+## Tech Stack
+- Frontend: React 18 + Vite + TypeScript + TailwindCSS + shadcn/ui
+- Backend: Express 5 (existing api-server)
+- DB: PostgreSQL (heliumdb) via Drizzle
+- AI: Replit AI Integration (OpenAI-compatible, vision)
+- Voice: Web Speech API
+- Browser automation: Playwright (server-side)
+- Hosting: Replit Deployments → ezboai.com
 
-## Where things live
+## Repo Structure (pnpm monorepo)
+- `artifacts/api-server/` — Express backend (exists)
+- `artifacts/web-app/` — React frontend (to be created in Phase 1)
+- `lib/api-spec/` — shared OpenAPI spec
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
-
-## Architecture decisions
-
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
-
-## Product
-
-_Describe the high-level user-facing capabilities of this app once they exist._
+## Full Build Guide
+See `.local/tasks/ezboai-full-build-guide.md` for complete phase-by-phase implementation details. This is the authoritative blueprint — any agent on any account can resume work by following it.
 
 ## User preferences
-
-_Populate as you build — explicit user instructions worth remembering across sessions._
-
-## Gotchas
-
-_Populate as you build — sharp edges, "always run X before Y" rules._
-
-## Pointers
-
-- See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details
+- User communicates in **Banglish** (Bengali in Latin script). Respond in Bangla or Banglish.
+- Be honest about technical limitations (browser sandbox, OS restrictions). Do not promise impossible features.
+- Build phase by phase; test each phase before moving to the next.
+- Domain: ezboai.com (user-owned). Custom domain connected at Phase 12 (deploy).
+- Database is live PostgreSQL — work directly on it, no mock data.
