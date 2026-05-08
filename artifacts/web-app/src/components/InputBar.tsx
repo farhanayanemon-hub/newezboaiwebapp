@@ -6,6 +6,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { MicButton } from "@/components/MicButton";
+import { CameraOverlay } from "@/components/CameraOverlay";
+import { useCameraStore } from "@/stores/cameraStore";
 
 interface InputBarProps {
   value: string;
@@ -22,7 +24,6 @@ interface InputBarProps {
 }
 
 const PHASE_HINTS = {
-  camera: "Camera — coming soon",
   screen: "Screen share — coming soon",
 };
 
@@ -48,6 +49,7 @@ export function InputBar({
   const [composing, setComposing] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const dragDepth = useRef(0);
+  const openCamera = useCameraStore((s) => s.open);
 
   useEffect(() => {
     if (autoFocus) textareaRef.current?.focus();
@@ -69,7 +71,6 @@ export function InputBar({
     key: keyof typeof PHASE_HINTS;
     icon: typeof Mic;
   }> = [
-    { key: "camera", icon: Camera },
     { key: "screen", icon: Monitor },
   ];
 
@@ -129,6 +130,21 @@ export function InputBar({
                 }, 50);
               }}
             />
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 rounded-lg text-muted-foreground hover-elevate active-elevate-2"
+                  aria-label={ARIA_LABELS.camera}
+                  onClick={() => openCamera()}
+                  data-testid="button-action-camera"
+                >
+                  <Camera className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top">Camera (Snap or Live Vision)</TooltipContent>
+            </Tooltip>
             {placeholderHints.map(({ key, icon: Icon }) => (
               <Tooltip key={key}>
                 <TooltipTrigger asChild>
@@ -241,6 +257,13 @@ export function InputBar({
           Press Enter to send, Shift+Enter for a new line. AI can make mistakes — please verify.
         </p>
       </div>
+
+      <CameraOverlay
+        onSnap={(file) => {
+          if (onFilesPicked) onFilesPicked([file]);
+          else toast.error("Attachment system not ready.");
+        }}
+      />
     </div>
   );
 }

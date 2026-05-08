@@ -6,6 +6,7 @@ import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetHeader } from "@/co
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Logo } from "@/components/Logo";
 import { SidebarContent } from "@/components/Sidebar";
+import { PrivacyIndicator } from "@/components/PrivacyIndicator";
 
 interface AppShellProps {
   children: ReactNode;
@@ -81,6 +82,7 @@ export function AppShell({
           </div>
 
           <div className="flex flex-shrink-0 items-center gap-1">
+            <PrivacyIndicator />
             {headerRight}
             {!hideSettingsLink && (
               <Button
