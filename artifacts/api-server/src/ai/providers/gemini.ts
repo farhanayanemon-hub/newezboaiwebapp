@@ -1,5 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import type { AIProvider, ChatStreamResult, ProviderModel, TestResult } from "./types";
+import { contentToString } from "./types";
 
 const FALLBACK_MODELS: ProviderModel[] = [
   { id: "gemini-2.5-pro", contextWindow: 2000000 },
@@ -36,12 +37,14 @@ export const geminiProvider: AIProvider = {
   },
   async streamChat({ apiKey, model, messages, onChunk }): Promise<ChatStreamResult> {
     const ai = client(apiKey);
-    const sysParts = messages.filter((m) => m.role === "system").map((m) => m.content);
+    const sysParts = messages
+      .filter((m) => m.role === "system")
+      .map((m) => contentToString(m.content));
     const contents = messages
       .filter((m) => m.role !== "system")
       .map((m) => ({
         role: m.role === "assistant" ? "model" : "user",
-        parts: [{ text: m.content }],
+        parts: [{ text: contentToString(m.content) }],
       }));
 
     const stream = await ai.models.generateContentStream({

@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { AIProvider, ChatStreamResult, ProviderModel, TestResult } from "./types";
+import { contentToString } from "./types";
 
 const FALLBACK_MODELS: ProviderModel[] = [
   { id: "claude-opus-4-20250514", contextWindow: 200000 },
@@ -44,10 +45,12 @@ export const anthropicProvider: AIProvider = {
   },
   async streamChat({ apiKey, model, messages, onChunk, signal }): Promise<ChatStreamResult> {
     const c = client(apiKey);
-    const sysParts = messages.filter((m) => m.role === "system").map((m) => m.content);
+    const sysParts = messages
+      .filter((m) => m.role === "system")
+      .map((m) => contentToString(m.content));
     const convo = messages
       .filter((m) => m.role !== "system")
-      .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
+      .map((m) => ({ role: m.role as "user" | "assistant", content: contentToString(m.content) }));
 
     const stream = await c.messages.stream(
       {

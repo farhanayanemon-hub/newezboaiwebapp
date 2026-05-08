@@ -24,6 +24,7 @@ export interface StreamOptions {
   modelOverride?: string;
   taskType?: string;
   conversationId?: string;
+  attachmentIds?: string[];
   signal?: AbortSignal;
 }
 
@@ -37,6 +38,7 @@ export async function streamChat(opts: StreamOptions, handlers: StreamHandlers):
       modelOverride: opts.modelOverride,
       taskType: opts.taskType,
       conversationId: opts.conversationId,
+      attachmentIds: opts.attachmentIds,
     }),
     signal: opts.signal,
   });

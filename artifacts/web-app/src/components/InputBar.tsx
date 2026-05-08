@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type DragEvent, type KeyboardEvent } from "react";
 import TextareaAutosize from "react-textarea-autosize";
 import { Mic, Camera, Monitor, Paperclip, Send, StopCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -14,20 +14,23 @@ interface InputBarProps {
   isStreaming?: boolean;
   onStop?: () => void;
   autoFocus?: boolean;
+  /** When provided, the paperclip + drag-drop are wired to this handler. */
+  onFilesPicked?: (files: File[]) => void;
+  /** True when at least one file has been attached but not yet sent. */
+  hasAttachments?: boolean;
 }
 
 const PHASE_HINTS = {
   mic: "Voice input — coming soon",
   camera: "Camera — coming soon",
   screen: "Screen share — coming soon",
-  file: "File upload — coming soon",
 };
 
 const ARIA_LABELS = {
   mic: "Voice input",
   camera: "Camera",
   screen: "Screen share",
-  file: "Add a file",
+  file: "Attach file",
 };
 
 export function InputBar({
@@ -38,16 +41,22 @@ export function InputBar({
   isStreaming,
   onStop,
   autoFocus,
+  onFilesPicked,
+  hasAttachments,
 }: InputBarProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [composing, setComposing] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  const dragDepth = useRef(0);
 
   useEffect(() => {
     if (autoFocus) textareaRef.current?.focus();
   }, [autoFocus]);
 
   const trimmed = value.trim();
-  const canSend = !disabled && !isStreaming && trimmed.length > 0;
+  const canSend =
+    !disabled && !isStreaming && (trimmed.length > 0 || !!hasAttachments);
   const showCounter = value.length > 500;
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -57,27 +66,61 @@ export function InputBar({
     }
   };
 
-  const iconButtons: Array<{
+  const placeholderHints: Array<{
     key: keyof typeof PHASE_HINTS;
     icon: typeof Mic;
   }> = [
     { key: "mic", icon: Mic },
     { key: "camera", icon: Camera },
     { key: "screen", icon: Monitor },
-    { key: "file", icon: Paperclip },
   ];
 
+  const handleDrop = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver(false);
+    dragDepth.current = 0;
+    if (!onFilesPicked) return;
+    const files = Array.from(e.dataTransfer?.files ?? []);
+    if (files.length > 0) onFilesPicked(files);
+  };
+
+  const handleDragEnter = (e: DragEvent<HTMLDivElement>) => {
+    if (!onFilesPicked) return;
+    if (e.dataTransfer?.types?.includes("Files")) {
+      e.preventDefault();
+      dragDepth.current += 1;
+      setDragOver(true);
+    }
+  };
+  const handleDragLeave = () => {
+    dragDepth.current = Math.max(0, dragDepth.current - 1);
+    if (dragDepth.current === 0) setDragOver(false);
+  };
+  const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
+    if (onFilesPicked && e.dataTransfer?.types?.includes("Files")) {
+      e.preventDefault();
+    }
+  };
+
   return (
-    <div className="border-t border-border bg-background/95 backdrop-blur-sm">
+    <div
+      className="border-t border-border bg-background/95 backdrop-blur-sm"
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
       <div className="mx-auto max-w-3xl px-4 py-3 sm:px-6 sm:py-4">
         <div
           className={cn(
-            "flex items-end gap-2 rounded-2xl border border-input bg-card px-2 py-2 shadow-sm transition-shadow",
+            "flex items-end gap-2 rounded-2xl border border-input bg-card px-2 py-2 shadow-sm transition-all",
             "focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/20 focus-within:shadow-md",
+            dragOver && "border-primary ring-2 ring-primary/40 bg-primary/5",
           )}
         >
           <div className="flex items-center gap-0.5 pb-0.5 pl-0.5">
-            {iconButtons.map(({ key, icon: Icon }) => (
+            {placeholderHints.map(({ key, icon: Icon }) => (
               <Tooltip key={key}>
                 <TooltipTrigger asChild>
                   <Button
@@ -94,6 +137,33 @@ export function InputBar({
                 <TooltipContent side="top">{PHASE_HINTS[key]}</TooltipContent>
               </Tooltip>
             ))}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 rounded-lg text-muted-foreground hover-elevate active-elevate-2"
+                  aria-label={ARIA_LABELS.file}
+                  onClick={() => fileInputRef.current?.click()}
+                  data-testid="button-action-file"
+                >
+                  <Paperclip className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top">Attach file (max 25 MB, 10 per message)</TooltipContent>
+            </Tooltip>
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              hidden
+              data-testid="input-file"
+              onChange={(e) => {
+                const list = Array.from(e.target.files ?? []);
+                if (list.length && onFilesPicked) onFilesPicked(list);
+                if (e.target) e.target.value = "";
+              }}
+            />
           </div>
 
           <div className="relative flex-1 py-1.5">
@@ -104,7 +174,7 @@ export function InputBar({
               onKeyDown={handleKeyDown}
               onCompositionStart={() => setComposing(true)}
               onCompositionEnd={() => setComposing(false)}
-              placeholder="Message EzboAI..."
+              placeholder={dragOver ? "Drop files to attach…" : "Message EzboAI..."}
               maxRows={8}
               minRows={1}
               disabled={disabled}

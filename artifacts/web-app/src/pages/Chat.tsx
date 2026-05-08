@@ -9,6 +9,11 @@ import { InputBar } from "@/components/InputBar";
 import { QuickActionChips } from "@/components/QuickActionChips";
 import { EmptyState } from "@/components/EmptyState";
 import {
+  AttachedFilesBar,
+  useFileUploads,
+  type AttachedItem,
+} from "@/components/AttachedFilesBar";
+import {
   TextInputDialog,
   LanguagePickerDialog,
   TonePickerDialog,
@@ -21,12 +26,14 @@ import {
   conversationKeys,
 } from "@/lib/conversations";
 import { streamChat } from "@/lib/streamChat";
+import { apiClient } from "@/lib/api";
 import {
   fillTemplate,
   recordQuickActionUse,
   type QuickActionDef,
 } from "@/lib/quickActions";
-import type { Message } from "@/types/chat";
+import type { Message, MessageAttachment } from "@/types/chat";
+import type { FileFull, FileKind } from "@/lib/files";
 
 interface PendingAction {
   action: QuickActionDef;
@@ -34,8 +41,22 @@ interface PendingAction {
   input: string | null;
 }
 
+function attachedItemToMeta(it: AttachedItem): MessageAttachment | null {
+  if (!it.uploaded) return null;
+  return {
+    id: it.uploaded.id,
+    name: it.uploaded.originalName,
+    kind: it.uploaded.kind === "image" ? "image" : "file",
+    url: it.uploaded.url,
+    mimeType: it.uploaded.mimeType ?? undefined,
+    size: it.uploaded.sizeBytes ?? undefined,
+  };
+}
+
 export default function ChatPage() {
   const [input, setInput] = useState("");
+  const [attached, setAttached] = useState<AttachedItem[]>([]);
+  const { addFiles } = useFileUploads({ items: attached, setItems: setAttached });
   const [streamingConversationIds, setStreamingConversationIds] = useState<Set<string>>(
     () => new Set(),
   );
@@ -47,6 +68,8 @@ export default function ChatPage() {
   const activeConversationId = useChatStore((s) => s.activeConversationId);
   const setActiveConversation = useChatStore((s) => s.setActiveConversation);
   const selectedModelId = useChatStore((s) => s.selectedModelId);
+  const pendingAttachments = useChatStore((s) => s.pendingAttachments);
+  const clearPendingAttachments = useChatStore((s) => s.clearPendingAttachments);
 
   const [pending, setPending] = useState<PendingAction | null>(null);
 
@@ -71,6 +94,44 @@ export default function ChatPage() {
     }
   }, [activeConversationId, location, search, setLocation]);
 
+  // Pick up any "Attach to new chat" pre-staged file IDs from the Files page.
+  useEffect(() => {
+    if (pendingAttachments.length === 0) return;
+    const ids = pendingAttachments;
+    clearPendingAttachments();
+    void Promise.all(
+      ids.map(async (id): Promise<AttachedItem | null> => {
+        try {
+          const res = await apiClient.get<{ file: FileFull }>(`/files/${id}`);
+          const f = res.file;
+          return {
+            localId: `staged-${id}`,
+            status: "ready",
+            progress: 100,
+            file: new File([], f.originalName),
+            uploaded: {
+              id: f.id,
+              kind: f.kind as FileKind,
+              url: f.url,
+              mimeType: f.mimeType,
+              sizeBytes: f.sizeBytes,
+              originalName: f.originalName,
+              sha256: f.sha256,
+              extractedTextPreview: null,
+              extractError: f.extractError,
+              createdAt: f.createdAt,
+            },
+          };
+        } catch {
+          return null;
+        }
+      }),
+    ).then((items) => {
+      const ready = items.filter((i): i is AttachedItem => !!i);
+      if (ready.length) setAttached((prev) => [...prev, ...ready]);
+    });
+  }, [pendingAttachments, clearPendingAttachments]);
+
   const { data: messages = [] } = useConversationMessages(activeConversationId);
 
   useEffect(() => {
@@ -93,19 +154,18 @@ export default function ChatPage() {
     });
   };
 
-  /**
-   * Core stream runner: sends `prompt` as the next user message and streams
-   * an assistant reply into the React Query cache. Used by both manual
-   * input and quick actions.
-   */
-  // Single-flight lock for new-conversation streams so a chip click and an
-  // input send can't race to spawn two parallel conversations before the
-  // first SSE `conversation` event resolves.
+  // Single-flight lock for new-conversation streams (Phase 5 fix).
   const newConvLock = useRef(false);
 
-  const runStream = async (prompt: string, taskType?: string) => {
+  const runStream = async (
+    prompt: string,
+    taskType?: string,
+    attachmentIds?: string[],
+    attachmentMeta?: MessageAttachment[],
+  ) => {
     const trimmed = prompt.trim();
-    if (!trimmed) return;
+    const ids = attachmentIds ?? [];
+    if (!trimmed && ids.length === 0) return;
 
     if (!activeConversationId) {
       if (newConvLock.current) return;
@@ -123,6 +183,7 @@ export default function ChatPage() {
       threadId: optimisticConvId,
       role: "user",
       content: trimmed,
+      attachments: attachmentMeta && attachmentMeta.length ? attachmentMeta : undefined,
       createdAt: Date.now(),
     };
     const assistantMessage: Message = {
@@ -159,7 +220,9 @@ export default function ChatPage() {
       .filter((m): m is { role: "user" | "assistant"; content: string } =>
         m.role === "user" || m.role === "assistant",
       );
-    history.push({ role: "user", content: trimmed });
+    // Stream API requires content min 1; if user sent only files use a thin
+    // placeholder so the route accepts the request.
+    history.push({ role: "user", content: trimmed || "(see attached files)" });
 
     try {
       await streamChat(
@@ -168,6 +231,7 @@ export default function ChatPage() {
           modelOverride: selectedModelId ?? undefined,
           taskType,
           conversationId: activeConversationId ?? undefined,
+          attachmentIds: ids.length ? ids : undefined,
           signal: ctrl.signal,
         },
         {
@@ -244,9 +308,22 @@ export default function ChatPage() {
 
   const handleSend = async () => {
     const trimmed = input.trim();
-    if (!trimmed) return;
+    const readyAttachments = attached.filter(
+      (a): a is AttachedItem & { uploaded: NonNullable<AttachedItem["uploaded"]> } =>
+        a.status === "ready" && !!a.uploaded,
+    );
+    if (!trimmed && readyAttachments.length === 0) return;
+    // Block send while uploads still in flight; user can hit X to remove.
+    if (attached.some((a) => a.status === "uploading")) return;
+
+    const ids = readyAttachments.map((a) => a.uploaded.id);
+    const metas = readyAttachments
+      .map(attachedItemToMeta)
+      .filter((m): m is MessageAttachment => !!m);
+
     setInput("");
-    await runStream(trimmed);
+    setAttached([]);
+    await runStream(trimmed, undefined, ids, metas);
   };
 
   const handleStop = () => {
@@ -259,13 +336,6 @@ export default function ChatPage() {
     markStreaming(activeConversationId, false);
   };
 
-  /**
-   * Resolve the input source for a quick action, in order:
-   * 1. Selected text (window.getSelection)
-   * 2. Current value in the input box
-   * 3. Last assistant message in this conversation
-   * Returns null if nothing is found — caller will then prompt for input.
-   */
   const resolveQuickActionInput = (): string | null => {
     if (typeof window !== "undefined") {
       const sel = window.getSelection?.()?.toString().trim();
@@ -282,8 +352,6 @@ export default function ChatPage() {
 
   const handleQuickAction = (action: QuickActionDef) => {
     const auto = resolveQuickActionInput();
-    // Custom actions and text-input built-ins always go through the text
-    // dialog if no input was found — but if input IS found, run immediately.
     if (action.inputForm === "text") {
       if (auto) {
         runQuickActionWithVars(action, { input: auto });
@@ -292,8 +360,6 @@ export default function ChatPage() {
       }
       return;
     }
-    // Other forms always need extra params, so we open them; auto-input
-    // (if any) is pre-filled.
     setPending({ action, input: auto });
   };
 
@@ -320,12 +386,15 @@ export default function ChatPage() {
       footer={
         <>
           <QuickActionChips onSelect={handleQuickAction} />
+          <AttachedFilesBar items={attached} onChange={setAttached} />
           <InputBar
             value={input}
             onChange={setInput}
             onSend={handleSend}
             isStreaming={isActiveStreaming}
             onStop={handleStop}
+            onFilesPicked={(files) => void addFiles(files)}
+            hasAttachments={attached.some((a) => a.status === "ready")}
             autoFocus
           />
         </>

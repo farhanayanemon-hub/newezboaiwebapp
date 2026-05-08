@@ -7,6 +7,7 @@ import ChatPage from "@/pages/Chat";
 import AdminPage from "@/pages/Admin";
 import SettingsPage from "@/pages/Settings";
 import MemoriesPage from "@/pages/Memories";
+import FilesPage from "@/pages/Files";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient({
@@ -26,6 +27,7 @@ function AppRoutes() {
       <Route path="/admin" component={AdminPage} />
       <Route path="/settings" component={SettingsPage} />
       <Route path="/memories" component={MemoriesPage} />
+      <Route path="/files" component={FilesPage} />
       <Route component={NotFound} />
     </Switch>
   );

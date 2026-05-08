@@ -15,6 +15,15 @@ interface ApiConversation {
   preview?: string;
 }
 
+interface ApiAttachment {
+  id?: string;
+  name?: string;
+  kind?: "image" | "file" | "audio" | "video";
+  url?: string;
+  mimeType?: string;
+  size?: number;
+}
+
 interface ApiMessage {
   id: string;
   conversationId: string;
@@ -22,7 +31,7 @@ interface ApiMessage {
   content: string;
   provider?: string | null;
   model?: string | null;
-  attachments?: unknown[];
+  attachments?: ApiAttachment[];
   createdAt: string;
 }
 
@@ -40,6 +49,21 @@ const toMessage = (m: ApiMessage): Message => ({
   role: m.role,
   content: m.content,
   createdAt: new Date(m.createdAt).getTime(),
+  attachments:
+    Array.isArray(m.attachments) && m.attachments.length > 0
+      ? m.attachments
+          .filter((a): a is ApiAttachment & { id: string; name: string } =>
+            !!a && typeof a.id === "string" && typeof a.name === "string",
+          )
+          .map((a) => ({
+            id: a.id,
+            name: a.name,
+            kind: a.kind === "image" ? "image" : "file",
+            url: a.url,
+            mimeType: a.mimeType,
+            size: a.size,
+          }))
+      : undefined,
   meta: m.provider || m.model
     ? { provider: m.provider ?? undefined, model: m.model ?? undefined }
     : undefined,

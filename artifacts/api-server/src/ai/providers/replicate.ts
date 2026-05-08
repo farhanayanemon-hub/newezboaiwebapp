@@ -1,5 +1,6 @@
 import Replicate from "replicate";
 import type { AIProvider, ChatStreamResult, ProviderModel, TestResult } from "./types";
+import { contentToString } from "./types";
 
 const FALLBACK_MODELS: ProviderModel[] = [
   { id: "meta/meta-llama-3.1-405b-instruct", capabilities: ["chat"] },
@@ -36,9 +37,10 @@ export const replicateProvider: AIProvider = {
     const c = client(apiKey);
     const prompt = messages
       .map((m) => {
-        if (m.role === "system") return `System: ${m.content}`;
-        if (m.role === "user") return `User: ${m.content}`;
-        return `Assistant: ${m.content}`;
+        const text = contentToString(m.content);
+        if (m.role === "system") return `System: ${text}`;
+        if (m.role === "user") return `User: ${text}`;
+        return `Assistant: ${text}`;
       })
       .join("\n\n");
 

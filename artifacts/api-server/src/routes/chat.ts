@@ -7,10 +7,15 @@ import {
   messagesTable,
   taskTypes,
   type TaskType,
+  attachmentsTable,
+  type MessageAttachmentMeta,
 } from "@workspace/db";
 import { router as aiRouter } from "../ai/router";
 import { buildSystemPrompt, extractMemoriesFromReply } from "../ai/prompts";
 import { upsertMemoryFromChat } from "./memories";
+import { loadAttachments, type ResolvedAttachment } from "./files";
+import { readObject } from "../services/objectStorage";
+import type { ChatMessage, ChatContentPart } from "../ai/providers/types";
 
 const router: IRouter = Router();
 
@@ -24,7 +29,61 @@ const streamSchema = z.object({
   taskType: z.enum(taskTypes).optional(),
   modelOverride: z.string().optional(),
   conversationId: z.string().uuid().optional(),
+  attachmentIds: z.array(z.string().uuid()).max(10).optional(),
 });
+
+// Hard cap on attached text bytes injected into a single chat turn so we
+// never blow past provider context windows.
+const MAX_ATTACHED_TEXT_CHARS = 120_000;
+
+function attachmentsTextBlock(attachments: ResolvedAttachment[]): string {
+  const lines: string[] = [];
+  let used = 0;
+  for (const a of attachments) {
+    if (a.kind === "image") continue;
+    const header = `\n\n[Attachment: ${a.originalName}]\n`;
+    let body = "";
+    if (a.extractedText && a.extractedText.trim()) {
+      body = a.extractedText;
+    } else if (a.extractError) {
+      body = `(could not extract text: ${a.extractError})`;
+    } else {
+      body = "(no text extracted)";
+    }
+    const footer = `\n[End attachment]`;
+    const piece = header + body + footer;
+    if (used + piece.length > MAX_ATTACHED_TEXT_CHARS) {
+      const remaining = MAX_ATTACHED_TEXT_CHARS - used;
+      if (remaining > 200) {
+        lines.push(piece.slice(0, remaining) + "\n...[truncated]");
+      }
+      lines.push("\n[Note: remaining attachments omitted to fit context.]");
+      break;
+    }
+    lines.push(piece);
+    used += piece.length;
+  }
+  return lines.join("");
+}
+
+async function buildImageParts(
+  attachments: ResolvedAttachment[],
+  log?: { error?: (obj: unknown, msg?: string) => void },
+): Promise<ChatContentPart[]> {
+  const parts: ChatContentPart[] = [];
+  for (const a of attachments) {
+    if (a.kind !== "image") continue;
+    try {
+      const buf = await readObject(a.storageKey);
+      const mime = a.mimeType || "image/jpeg";
+      const dataUrl = `data:${mime};base64,${buf.toString("base64")}`;
+      parts.push({ type: "image_url", image_url: { url: dataUrl } });
+    } catch (err) {
+      log?.error?.({ err, key: a.storageKey }, "failed to load image attachment");
+    }
+  }
+  return parts;
+}
 
 router.post("/stream", async (req, res) => {
   const parsed = streamSchema.safeParse(req.body);
@@ -33,8 +92,16 @@ router.post("/stream", async (req, res) => {
     return;
   }
 
-  const { messages, modelOverride } = parsed.data;
-  const taskType: TaskType = parsed.data.taskType ?? "chat-smart";
+  const { messages, modelOverride, attachmentIds = [] } = parsed.data;
+
+  const attachments = attachmentIds.length
+    ? await loadAttachments(attachmentIds)
+    : [];
+  const hasImage = attachments.some((a) => a.kind === "image");
+  // If the caller didn't pin a task type and they attached an image, route
+  // the request to a vision-capable provider.
+  const taskType: TaskType =
+    parsed.data.taskType ?? (hasImage ? "vision" : "chat-smart");
 
   // Resolve conversation: use provided, or auto-create.
   let conversationId = parsed.data.conversationId;
@@ -68,21 +135,69 @@ router.post("/stream", async (req, res) => {
     res.write(`data: ${JSON.stringify(event)}\n\n`);
   };
 
-  // Notify client of resolved conversation id immediately.
   send({ type: "conversation", conversationId, created: conversationCreated });
 
   const userMessages = messages.filter((m) => m.role !== "system");
-  const lastUser = [...userMessages].reverse().find((m) => m.role === "user");
+  const lastUserIdx = (() => {
+    for (let i = userMessages.length - 1; i >= 0; i--) {
+      if (userMessages[i].role === "user") return i;
+    }
+    return -1;
+  })();
+  const lastUser = lastUserIdx >= 0 ? userMessages[lastUserIdx] : undefined;
 
-  // Persist the latest user message before invoking the AI. Failures here
-  // are surfaced to the client because they break the persistence contract.
+  // Build the augmented last-user message if we have attachments.
+  const textBlock = attachmentsTextBlock(attachments);
+  const imageParts = hasImage ? await buildImageParts(attachments, req.log) : [];
+
+  let augmentedLastUser: ChatMessage | null = null;
+  if (lastUser && (textBlock || imageParts.length)) {
+    const augmentedText = (lastUser.content || "") + textBlock;
+    if (imageParts.length) {
+      augmentedLastUser = {
+        role: "user",
+        content: [{ type: "text", text: augmentedText }, ...imageParts],
+      };
+    } else {
+      augmentedLastUser = { role: "user", content: augmentedText };
+    }
+  }
+
+  // Persist the latest user message + attachment metadata before invoking the AI.
+  let savedUserMessageId: string | null = null;
   if (lastUser) {
     try {
-      await db.insert(messagesTable).values({
-        conversationId,
-        role: "user",
-        content: lastUser.content,
-      });
+      const attMeta: MessageAttachmentMeta[] = attachments.map((a) => ({
+        id: a.id,
+        name: a.originalName,
+        kind: a.kind === "image" ? "image" : "file",
+        url: a.url,
+        mimeType: a.mimeType ?? undefined,
+        size: a.sizeBytes ?? undefined,
+      }));
+      const [saved] = await db
+        .insert(messagesTable)
+        .values({
+          conversationId,
+          role: "user",
+          content: lastUser.content,
+          attachments: attMeta,
+        })
+        .returning({ id: messagesTable.id });
+      savedUserMessageId = saved.id;
+      // Link attachment rows back to this message (for cascade-cleanup parity).
+      if (attachments.length) {
+        await Promise.all(
+          attachments.map((a) =>
+            db
+              .update(attachmentsTable)
+              .set({ messageId: saved.id })
+              .where(eq(attachmentsTable.id, a.id)),
+          ),
+        ).catch((err) =>
+          req.log?.error({ err }, "failed to link attachments to message"),
+        );
+      }
       await db
         .update(conversationsTable)
         .set({ updatedAt: new Date() })
@@ -94,11 +209,15 @@ router.post("/stream", async (req, res) => {
       return;
     }
   }
+  void savedUserMessageId;
 
   const systemPrompt = await buildSystemPrompt();
-  const fullMessages = [
-    { role: "system" as const, content: systemPrompt },
-    ...userMessages,
+  const fullMessages: ChatMessage[] = [
+    { role: "system", content: systemPrompt },
+    ...userMessages.map((m, i): ChatMessage => {
+      if (i === lastUserIdx && augmentedLastUser) return augmentedLastUser;
+      return { role: m.role, content: m.content };
+    }),
   ];
 
   let fullReply = "";
@@ -113,7 +232,6 @@ router.post("/stream", async (req, res) => {
       },
     });
 
-    // Extract any [REMEMBER: ...] tags and persist them, then save cleaned reply.
     const { cleaned, memories } = extractMemoriesFromReply(fullReply);
     for (const m of memories) {
       await upsertMemoryFromChat(m.key, m.value).catch((err) =>
@@ -146,7 +264,6 @@ router.post("/stream", async (req, res) => {
       savedMemories: memories,
     });
 
-    // Auto-title in background if conversation was just created or still default.
     void maybeAutoTitle(conversationId, lastUser?.content ?? "", cleaned || fullReply, req).catch(
       (err) => req.log?.error({ err }, "auto-title failed"),
     );
@@ -177,7 +294,6 @@ router.post("/stream", async (req, res) => {
       send({ type: "error", message: msg });
     }
 
-    // Persist whatever partial reply we got so the UI can recover on reload.
     if (fullReply) {
       await db
         .insert(messagesTable)

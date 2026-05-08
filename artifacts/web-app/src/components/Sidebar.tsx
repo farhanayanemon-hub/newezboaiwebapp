@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Plus, Search, Settings, ShieldCheck, Brain } from "lucide-react";
+import { Plus, Search, Settings, ShieldCheck, Brain, FolderOpen } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,6 +26,7 @@ export function SidebarContent({ onNavigate }: SidebarContentProps) {
   }, [search]);
 
   const navItems = [
+    { href: "/files", label: "File Library", icon: FolderOpen, testId: "nav-files" },
     { href: "/memories", label: "Memories", icon: Brain, testId: "nav-memories" },
     { href: "/settings", label: "Settings", icon: Settings, testId: "nav-settings" },
     { href: "/admin", label: "Admin Panel", icon: ShieldCheck, testId: "nav-admin" },

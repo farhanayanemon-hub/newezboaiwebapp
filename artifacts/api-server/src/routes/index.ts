@@ -5,6 +5,7 @@ import chatRouter from "./chat";
 import conversationsRouter from "./conversations";
 import memoriesRouter from "./memories";
 import quickActionsRouter from "./quickActions";
+import filesRouter from "./files";
 
 const router: IRouter = Router();
 
@@ -14,5 +15,6 @@ router.use("/chat", chatRouter);
 router.use("/conversations", conversationsRouter);
 router.use("/memories", memoriesRouter);
 router.use("/quick-actions", quickActionsRouter);
+router.use("/files", filesRouter);
 
 export default router;

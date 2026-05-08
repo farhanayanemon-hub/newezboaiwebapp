@@ -10,10 +10,17 @@ interface ChatUIState {
   activeConversationId: string | null;
   selectedModelId: string | null;
   voiceOutputEnabled: boolean;
+  /**
+   * One-shot attachment IDs pre-staged from the Files page ("Attach to new
+   * chat"). Picked up by the Chat page on mount and then cleared.
+   */
+  pendingAttachments: string[];
 
   setActiveConversation: (id: string | null) => void;
   setSelectedModel: (id: string | null) => void;
   toggleVoiceOutput: () => void;
+  setPendingAttachments: (ids: string[]) => void;
+  clearPendingAttachments: () => void;
 }
 
 export const useChatStore = create<ChatUIState>()(
@@ -22,10 +29,13 @@ export const useChatStore = create<ChatUIState>()(
       activeConversationId: null,
       selectedModelId: null,
       voiceOutputEnabled: false,
+      pendingAttachments: [],
       setActiveConversation: (id) => set({ activeConversationId: id }),
       setSelectedModel: (id) => set({ selectedModelId: id }),
       toggleVoiceOutput: () =>
         set((s) => ({ voiceOutputEnabled: !s.voiceOutputEnabled })),
+      setPendingAttachments: (ids) => set({ pendingAttachments: ids }),
+      clearPendingAttachments: () => set({ pendingAttachments: [] }),
     }),
     {
       name: "ezboai-chat-ui",

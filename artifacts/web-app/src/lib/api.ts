@@ -86,4 +86,9 @@ export function streamUrl(path: string): string {
   return buildUrl(path);
 }
 
+/** Build a URL relative to the API base (without forcing JSON headers). */
+export function baseUrl(path: string): string {
+  return buildUrl(path);
+}
+
 export type { RequestOptions };

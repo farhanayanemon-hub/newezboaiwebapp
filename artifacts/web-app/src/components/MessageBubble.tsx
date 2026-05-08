@@ -1,17 +1,28 @@
 import { memo, useState } from "react";
-import { Copy, Check, Sparkles, User as UserIcon } from "lucide-react";
+import {
+  Copy,
+  Check,
+  Sparkles,
+  User as UserIcon,
+  FileText,
+  FileSpreadsheet,
+  FileCode2,
+  File as FileIcon,
+  Download,
+} from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark, oneLight } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { motion } from "framer-motion";
-import type { Message } from "@/types/chat";
+import type { Message, MessageAttachment } from "@/types/chat";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { useTheme } from "@/lib/theme-provider";
 import { toast } from "sonner";
+import { fileServingUrl, formatFileSize, type FileKind } from "@/lib/files";
 
 interface MessageBubbleProps {
   message: Message;
@@ -37,6 +48,91 @@ function formatLatency(ms?: number): string | null {
   return `${(ms / 1000).toFixed(1)}s`;
 }
 
+function iconFor(mime: string | undefined): typeof FileIcon {
+  if (!mime) return FileIcon;
+  if (mime.includes("spreadsheet") || mime === "text/csv" || mime === "application/vnd.ms-excel")
+    return FileSpreadsheet;
+  if (
+    mime === "application/json" ||
+    mime.startsWith("text/x-") ||
+    mime === "text/javascript" ||
+    mime === "application/javascript"
+  )
+    return FileCode2;
+  if (mime.startsWith("text/") || mime === "application/pdf" || mime.includes("word"))
+    return FileText;
+  return FileIcon;
+}
+
+function inferKind(att: MessageAttachment): FileKind {
+  if (att.kind === "image" || att.mimeType?.startsWith("image/")) return "image";
+  if (att.mimeType === "application/pdf") return "pdf";
+  if (att.mimeType?.includes("word")) return "word";
+  if (
+    att.mimeType?.includes("spreadsheet") ||
+    att.mimeType === "text/csv" ||
+    att.mimeType === "application/vnd.ms-excel"
+  )
+    return "spreadsheet";
+  return "other";
+}
+
+function AttachmentCard({ att }: { att: MessageAttachment }) {
+  const kind = inferKind(att);
+  const url = att.url || (att.id ? fileServingUrl(att.id) : "#");
+  const downloadUrl = att.id ? fileServingUrl(att.id, true) : url;
+
+  if (kind === "image") {
+    return (
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="block overflow-hidden rounded-lg border border-border/40 bg-muted/30 hover:opacity-90"
+      >
+        <img
+          src={url}
+          alt={att.name}
+          className="max-h-64 w-auto max-w-full object-contain"
+          loading="lazy"
+        />
+        <div className="flex items-center justify-between gap-2 px-2 py-1 text-[10px] text-muted-foreground">
+          <span className="truncate">{att.name}</span>
+          <span>{formatFileSize(att.size)}</span>
+        </div>
+      </a>
+    );
+  }
+
+  const Icon = iconFor(att.mimeType);
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="flex items-center gap-2 rounded-lg border border-border/50 bg-card/60 px-2 py-1.5 text-xs text-foreground hover:bg-card"
+    >
+      <div className="flex h-8 w-8 items-center justify-center rounded bg-muted text-muted-foreground">
+        <Icon className="h-4 w-4" />
+      </div>
+      <div className="flex min-w-0 flex-col">
+        <span className="max-w-[200px] truncate font-medium leading-tight">{att.name}</span>
+        <span className="text-[10px] leading-tight text-muted-foreground">
+          {formatFileSize(att.size)}
+        </span>
+      </div>
+      <a
+        href={downloadUrl}
+        onClick={(e) => e.stopPropagation()}
+        className="ml-1 rounded p-1 text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+        aria-label="Download"
+      >
+        <Download className="h-3.5 w-3.5" />
+      </a>
+    </a>
+  );
+}
+
 function MessageBubbleImpl({ message }: MessageBubbleProps) {
   const [copied, setCopied] = useState(false);
   const { resolvedTheme } = useTheme();
@@ -56,6 +152,7 @@ function MessageBubbleImpl({ message }: MessageBubbleProps) {
   const meta = message.meta;
   const totalTokens = (meta?.inputTokens ?? 0) + (meta?.outputTokens ?? 0);
   const latency = formatLatency(meta?.latencyMs);
+  const attachments = message.attachments ?? [];
 
   return (
     <motion.div
@@ -104,66 +201,82 @@ function MessageBubbleImpl({ message }: MessageBubbleProps) {
           <TooltipContent side="top">{copied ? "Copied" : "Copy"}</TooltipContent>
         </Tooltip>
 
-        <div
-          className={cn(
-            "prose prose-sm max-w-none break-words",
-            isUser
-              ? "prose-invert prose-p:text-primary-foreground prose-strong:text-primary-foreground prose-li:text-primary-foreground prose-headings:text-primary-foreground prose-a:text-primary-foreground prose-a:underline"
-              : "dark:prose-invert prose-p:text-card-foreground",
-            "prose-p:my-1.5 prose-pre:my-2 prose-pre:p-0 prose-pre:bg-transparent prose-code:text-[0.85em] prose-code:before:content-none prose-code:after:content-none",
-          )}
-        >
-          <ReactMarkdown
-            remarkPlugins={[remarkGfm]}
-            rehypePlugins={[[rehypeSanitize, sanitizeSchema]]}
-            components={{
-              code({ className, children, ...props }) {
-                const match = /language-(\w+)/.exec(className || "");
-                const lang = match?.[1];
-                const inline = (props as { inline?: boolean }).inline;
-                if (!inline && lang) {
-                  return (
-                    <SyntaxHighlighter
-                      style={resolvedTheme === "dark" ? oneDark : oneLight}
-                      language={lang}
-                      PreTag="div"
-                      customStyle={{
-                        margin: 0,
-                        padding: "0.75rem",
-                        borderRadius: "0.5rem",
-                        fontSize: "0.85em",
-                      }}
-                    >
-                      {String(children).replace(/\n$/, "")}
-                    </SyntaxHighlighter>
-                  );
-                }
-                return (
-                  <code
-                    className={cn(
-                      "rounded px-1 py-0.5 font-mono text-[0.85em]",
-                      isUser
-                        ? "bg-primary-foreground/20"
-                        : "bg-muted text-foreground",
-                    )}
-                    {...props}
-                  >
-                    {children}
-                  </code>
-                );
-              },
-              a({ href, children, ...props }) {
-                return (
-                  <a href={href} target="_blank" rel="noopener noreferrer" {...props}>
-                    {children}
-                  </a>
-                );
-              },
-            }}
+        {attachments.length > 0 && (
+          <div
+            className={cn(
+              "mb-2 flex flex-wrap gap-1.5",
+              isUser ? "[&_a]:bg-primary-foreground/10 [&_a]:text-primary-foreground" : "",
+            )}
+            data-testid={`attachments-${message.id}`}
           >
-            {message.content}
-          </ReactMarkdown>
-        </div>
+            {attachments.map((a) => (
+              <AttachmentCard key={a.id ?? a.name} att={a} />
+            ))}
+          </div>
+        )}
+
+        {message.content && (
+          <div
+            className={cn(
+              "prose prose-sm max-w-none break-words",
+              isUser
+                ? "prose-invert prose-p:text-primary-foreground prose-strong:text-primary-foreground prose-li:text-primary-foreground prose-headings:text-primary-foreground prose-a:text-primary-foreground prose-a:underline"
+                : "dark:prose-invert prose-p:text-card-foreground",
+              "prose-p:my-1.5 prose-pre:my-2 prose-pre:p-0 prose-pre:bg-transparent prose-code:text-[0.85em] prose-code:before:content-none prose-code:after:content-none",
+            )}
+          >
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              rehypePlugins={[[rehypeSanitize, sanitizeSchema]]}
+              components={{
+                code({ className, children, ...props }) {
+                  const match = /language-(\w+)/.exec(className || "");
+                  const lang = match?.[1];
+                  const inline = (props as { inline?: boolean }).inline;
+                  if (!inline && lang) {
+                    return (
+                      <SyntaxHighlighter
+                        style={resolvedTheme === "dark" ? oneDark : oneLight}
+                        language={lang}
+                        PreTag="div"
+                        customStyle={{
+                          margin: 0,
+                          padding: "0.75rem",
+                          borderRadius: "0.5rem",
+                          fontSize: "0.85em",
+                        }}
+                      >
+                        {String(children).replace(/\n$/, "")}
+                      </SyntaxHighlighter>
+                    );
+                  }
+                  return (
+                    <code
+                      className={cn(
+                        "rounded px-1 py-0.5 font-mono text-[0.85em]",
+                        isUser
+                          ? "bg-primary-foreground/20"
+                          : "bg-muted text-foreground",
+                      )}
+                      {...props}
+                    >
+                      {children}
+                    </code>
+                  );
+                },
+                a({ href, children, ...props }) {
+                  return (
+                    <a href={href} target="_blank" rel="noopener noreferrer" {...props}>
+                      {children}
+                    </a>
+                  );
+                },
+              }}
+            >
+              {message.content}
+            </ReactMarkdown>
+          </div>
+        )}
 
         {!isUser && meta && (meta.provider || meta.error) && (
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground/80">

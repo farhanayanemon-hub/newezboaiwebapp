@@ -1,0 +1,79 @@
+EzboAI Phase 6 — File Handling (PDF, Word, Excel, Image, Code)
+What & Why
+Let users upload documents and images that the AI can read and understand. Server-side text extraction for PDFs, Word, Excel, plain text, and code; vision-AI routing for images. Files persist in object storage and are listed in a File Library page where users can re-attach files to new chats.
+
+Done looks like
+📎 Attach button in the input bar opens file picker (multi-select)
+Drag-and-drop on the chat area or input also uploads
+Supported types:
+PDF (.pdf) — extract text via pdf-parse; preserve page numbers in output
+Word (.docx) — extract text via mammoth (preserves basic formatting)
+Excel (.xlsx, .xls, .csv) — convert sheets to markdown tables via xlsx
+Plain text (.txt, .md) — read as UTF-8
+Code (.js, .ts, .py, .html, .css, .json, .yaml, etc.) — read as UTF-8, mark with language for syntax highlighting
+Images (.jpg, .jpeg, .png, .webp, .gif) — sent directly to the vision task as base64
+File size limit 25 MB per file (configurable in admin settings later)
+Multi-file: user can attach up to 10 files in one message
+Above the input, attached files show as preview chips (icon, filename, size, remove ×)
+On send: backend includes extracted text inline in the message (or attaches images to vision request); message is stored with attachments jsonb pointing to file rows
+Files saved to object storage (object-storage skill) with hashed paths; metadata in attachments table from Phase 4
+File Library page (/files):
+Grid view of all uploaded files (thumbnail for images, file-type icon for others)
+Search by name/content (extracted text indexed)
+Filter by type
+Click a file → preview modal with extracted text + "Attach to new chat" button
+Bulk select + delete
+In-message file attachment display: in chat bubbles, attached files show as styled inline cards (clickable to preview/download)
+Large file UX: progress bar during upload (multipart or chunked if >5 MB)
+Out of scope
+OCR of images (vision AI handles this implicitly in Phase 8 too)
+Audio file transcription (could be added if user wants — uses audio-stt task type if so)
+Video files
+Real-time collaborative editing of documents
+Steps
+Read skill — object-storage to set up file storage in the api-server.
+Install backend deps — multer, pdf-parse, mammoth, xlsx, mime-types.
+Object storage setup — follow the skill to configure App Storage; create a bucket like ezboai-files.
+Upload endpoint — POST /api/files/upload (multer, max 25 MB per file, max 10 files):
+For each file:
+Compute SHA-256 hash → use as object key (de-duplicates identical uploads)
+Detect MIME type
+Upload to object storage; record URL
+Extract text by type (catch errors gracefully — store with extractedText: null and error: '...')
+Insert attachments row
+Return array of {id, kind, url, mimeType, sizeBytes, extractedTextPreview, originalName}
+List/get/delete endpoints — GET /api/files, GET /api/files/:id, DELETE /api/files/:id.
+Chat stream extension — body now accepts attachmentIds: string[]:
+Backend fetches each attachment
+For text-based: prepend a section to the message: "[Attachment: filename.pdf]\n<extracted text>\n[End attachment]"
+For images: switch to vision-capable provider (router task type vision or include image_url parts in messages)
+Persist message with the attachment IDs in messages.attachments jsonb
+Frontend file upload component — components/AttachedFilesBar.tsx:
+Renders chips above input
+Drag-drop handler on the chat container
+File picker via hidden <input type="file">
+Upload progress UI (per file)
+Remove (×) per chip
+InputBar extension — wires attach button + drag-drop + send-with-attachments.
+Bubble extension — MessageBubble renders attached files as inline cards (image preview or icon+name).
+File Library page — pages/Files.tsx with grid, search, filter, preview modal, delete.
+Search of files by content — extend Phase 4's FTS to also index attachments.extractedText; or add a separate search index.
+Tests — e2e: upload PDF → ask "summarize" → AI returns summary; upload image → ask "what's in this picture?" → AI describes.
+Code review — architect.
+Mark complete — Phase 7 unblocks.
+Critical constraints
+File uploads must NOT block the request thread — stream to disk/storage with multer's disk storage.
+Sanitize filenames before storage (prevent path traversal).
+Limit per-message total payload size; truncate extracted text if huge (e.g. >100k tokens) and warn user.
+For images, send base64 data URLs to vision providers OR upload to a public URL the provider can fetch.
+Object storage keys should be hash-based to avoid collisions and enable deduplication.
+Relevant files
+artifacts/api-server/src/routes/files.ts (new)
+artifacts/api-server/src/services/extractText.ts (new)
+artifacts/api-server/src/services/objectStorage.ts (per skill)
+artifacts/web-app/src/components/AttachedFilesBar.tsx (new)
+artifacts/web-app/src/pages/Files.tsx (new)
+artifacts/api-server/src/db/schema.ts (extend attachments)
+.local/skills/object-storage/SKILL.md
+Dependencies
+EzboAI Phase 5 — Quick Actions

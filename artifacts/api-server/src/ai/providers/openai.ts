@@ -29,10 +29,15 @@ function makeOpenAICompatible(slug: string, baseURL?: string): AIProvider {
     },
     async streamChat({ apiKey, model, messages, onChunk, signal }): Promise<ChatStreamResult> {
       const c = client(apiKey, baseURL);
+      // Pass multimodal content arrays through directly so vision-capable models
+      // (e.g. gpt-4o, gpt-4o-mini) receive image_url parts unmodified.
       const stream = await c.chat.completions.create(
         {
           model,
-          messages: messages.map((m) => ({ role: m.role, content: m.content })),
+          // OpenAI SDK type expects narrower content types per role; cast at the boundary.
+          messages: messages.map((m) => ({ role: m.role, content: m.content })) as Parameters<
+            typeof c.chat.completions.create
+          >[0]["messages"],
           stream: true,
           stream_options: { include_usage: true },
         },
