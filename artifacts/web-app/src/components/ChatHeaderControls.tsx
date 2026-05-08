@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { Volume2, VolumeX, ChevronDown, Check, Sparkles, Square } from "lucide-react";
-import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -198,7 +197,7 @@ export function ChatHeaderRight() {
           {loaded && models.length === 0 && (
             <DropdownMenuItem disabled>
               <span className="text-xs text-muted-foreground">
-                No enabled models. Configure in Admin.
+                No enabled models yet.
               </span>
             </DropdownMenuItem>
           )}
@@ -219,12 +218,6 @@ export function ChatHeaderRight() {
               </div>
             </DropdownMenuItem>
           ))}
-          <DropdownMenuSeparator />
-          <DropdownMenuItem asChild>
-            <Link href="/admin" className="text-xs text-muted-foreground">
-              Manage providers →
-            </Link>
-          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
 

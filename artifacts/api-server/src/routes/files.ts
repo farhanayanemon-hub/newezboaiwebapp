@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import multer from "multer";
 import path from "node:path";
 import os from "node:os";
+import { randomUUID } from "node:crypto";
 import { lookup as mimeLookup } from "mime-types";
 import { z } from "zod";
 import { sql, eq, desc, inArray } from "drizzle-orm";
@@ -90,6 +91,10 @@ router.post("/upload", (req, res, next) => {
 
       // Materialize + insert under an advisory lock on the sha so a concurrent
       // delete can't unlink the blob between our write and our row insert.
+      // We pre-generate the UUID so we can set `url` at insert time and avoid
+      // a brittle post-insert UPDATE.
+      const id = randomUUID();
+      const url = publicUrlFor(id);
       const inserted = await db.transaction(async (tx) => {
         await lockSha(tx, hashed.sha256);
         const mat = await materializeBlob(hashed.sha256, hashed.buf);
@@ -97,9 +102,10 @@ router.post("/upload", (req, res, next) => {
         const [row] = await tx
           .insert(attachmentsTable)
           .values({
+            id,
             kind,
             storageKey: mat.storageKey,
-            url: "", // filled after we have id
+            url,
             originalName: file.originalname,
             mimeType,
             sizeBytes: hashed.sizeBytes,
@@ -108,8 +114,6 @@ router.post("/upload", (req, res, next) => {
             extractError: extract.error,
           })
           .returning();
-        const url = publicUrlFor(row.id);
-        await tx.update(attachmentsTable).set({ url }).where(eq(attachmentsTable.id, row.id));
         return { row, url, extract };
       });
 
@@ -132,9 +136,19 @@ router.post("/upload", (req, res, next) => {
     } catch (err) {
       req.log?.error({ err, name: file.originalname }, "file upload failed");
       await discardTempFile(file.path);
+      // Drizzle wraps PG errors; surface the underlying cause when present so
+      // the user actually sees *why* it failed instead of just "Failed query".
+      const cause = (err as { cause?: unknown })?.cause;
+      const causeMsg =
+        cause instanceof Error
+          ? cause.message
+          : cause
+            ? String(cause)
+            : null;
+      const baseMsg = err instanceof Error ? err.message : String(err);
       out.push({
         originalName: file.originalname,
-        error: err instanceof Error ? err.message : String(err),
+        error: causeMsg ? `${causeMsg} (${baseMsg.split("\n")[0]})` : baseMsg,
       });
     }
   }
