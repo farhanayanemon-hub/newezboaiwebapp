@@ -8,3 +8,5 @@ export * from "./memories";
 export * from "./attachments";
 export * from "./quickActions";
 export * from "./ttsCache";
+export * from "./reminders";
+export * from "./pushSubscriptions";

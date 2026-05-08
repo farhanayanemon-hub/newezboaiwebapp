@@ -30,3 +30,11 @@ externalPort = 8080
 [[ports]]
 localPort = 8081
 externalPort = 80
+
+[userenv]
+
+[userenv.shared]
+VAPID_PUBLIC_KEY = "BAHNopVpm7CxyMnc7ElvshZugDbe6IV3u-vQSkSxSj-yqf1oV0lkNG_E4paHqGQPV3HjKn8tKjlx9Y6Tjz5NCw4"
+VAPID_PRIVATE_KEY = "komfV7oe3CP-TSlzamVgM1nheYkkZMEF5QrRXoCVxHE"
+VAPID_SUBJECT = "mailto:admin@ezboai.com"
+VITE_VAPID_PUBLIC_KEY = "BAHNopVpm7CxyMnc7ElvshZugDbe6IV3u-vQSkSxSj-yqf1oV0lkNG_E4paHqGQPV3HjKn8tKjlx9Y6Tjz5NCw4"

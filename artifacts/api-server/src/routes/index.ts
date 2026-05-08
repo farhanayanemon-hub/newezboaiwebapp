@@ -8,6 +8,8 @@ import quickActionsRouter from "./quickActions";
 import filesRouter from "./files";
 import voiceRouter from "./voice";
 import visionRouter from "./vision";
+import remindersRouter from "./reminders";
+import pushRouter from "./push";
 
 const router: IRouter = Router();
 
@@ -20,5 +22,7 @@ router.use("/quick-actions", quickActionsRouter);
 router.use("/files", filesRouter);
 router.use("/voice", voiceRouter);
 router.use("/vision", visionRouter);
+router.use("/reminders", remindersRouter);
+router.use("/push", pushRouter);
 
 export default router;

@@ -1,6 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { ensureMessagesFts } from "./db/bootstrap";
+import { startReminderScheduler } from "./services/scheduler";
 
 const rawPort = process.env["PORT"];
 
@@ -18,6 +19,7 @@ if (Number.isNaN(port) || port <= 0) {
 
 async function start(): Promise<void> {
   await ensureMessagesFts();
+  startReminderScheduler();
   app.listen(port, (err) => {
     if (err) {
       logger.error({ err }, "Error listening on port");

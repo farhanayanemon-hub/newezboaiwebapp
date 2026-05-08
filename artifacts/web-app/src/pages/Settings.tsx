@@ -6,6 +6,7 @@ import { AppShell } from "@/components/AppShell";
 import { useTheme } from "@/lib/theme-provider";
 import { QuickActionsManager } from "@/components/QuickActionsManager";
 import { VoiceSettings } from "@/components/VoiceSettings";
+import { NotificationSettings } from "@/components/NotificationSettings";
 
 export default function SettingsPage() {
   const { theme, setTheme } = useTheme();
@@ -97,21 +98,21 @@ export default function SettingsPage() {
 
           <Separator />
 
-          <Card className="opacity-70" data-testid="card-notifications-coming">
+          <Card data-testid="card-notifications">
             <CardHeader>
               <div className="flex items-start gap-3">
-                <Bell className="mt-0.5 h-5 w-5 text-muted-foreground" />
+                <Bell className="mt-0.5 h-5 w-5 text-primary" />
                 <div className="flex-1">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    Notifications
-                    <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                      Coming soon
-                    </span>
-                  </CardTitle>
-                  <CardDescription>Reminders and browser push notifications</CardDescription>
+                  <CardTitle className="text-base">Notifications</CardTitle>
+                  <CardDescription>
+                    Reminders and browser push notifications
+                  </CardDescription>
                 </div>
               </div>
             </CardHeader>
+            <CardContent>
+              <NotificationSettings />
+            </CardContent>
           </Card>
 
           <Card className="opacity-70" data-testid="card-account-coming">

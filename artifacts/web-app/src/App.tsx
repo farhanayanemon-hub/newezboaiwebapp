@@ -8,6 +8,7 @@ import AdminPage from "@/pages/Admin";
 import SettingsPage from "@/pages/Settings";
 import MemoriesPage from "@/pages/Memories";
 import FilesPage from "@/pages/Files";
+import RemindersPage from "@/pages/Reminders";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient({
@@ -28,6 +29,7 @@ function AppRoutes() {
       <Route path="/settings" component={SettingsPage} />
       <Route path="/memories" component={MemoriesPage} />
       <Route path="/files" component={FilesPage} />
+      <Route path="/reminders" component={RemindersPage} />
       <Route component={NotFound} />
     </Switch>
   );
