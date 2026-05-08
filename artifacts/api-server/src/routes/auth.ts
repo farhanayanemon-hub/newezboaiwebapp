@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { z } from "zod";
 import { eq, sql } from "drizzle-orm";
-import { db, usersTable, type User } from "@workspace/db";
+import { db, usersTable, userSessionsTable, type User } from "@workspace/db";
 import {
   authRateLimit,
   createUserSession,
@@ -158,10 +158,19 @@ router.post("/change-password", requireUser(), async (req, res) => {
     return;
   }
   const newHash = await hashPassword(parsed.data.newPassword);
-  await db
-    .update(usersTable)
-    .set({ passwordHash: newHash, updatedAt: sql`now()` })
-    .where(eq(usersTable.id, user.id));
+  // Update the password and revoke ALL sessions for this user (including the
+  // current one) so any stolen cookies become useless. Then mint a fresh
+  // session for this caller so the UI does not bounce them to the login modal.
+  await db.transaction(async (tx) => {
+    await tx
+      .update(usersTable)
+      .set({ passwordHash: newHash, updatedAt: sql`now()` })
+      .where(eq(usersTable.id, user.id));
+    await tx
+      .delete(userSessionsTable)
+      .where(eq(userSessionsTable.userId, user.id));
+  });
+  await createUserSession(res, user.id);
   res.json({ ok: true });
 });
 
