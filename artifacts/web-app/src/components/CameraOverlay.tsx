@@ -45,6 +45,14 @@ export function CameraOverlay({ onSnap }: CameraOverlayProps) {
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  /** Generation counter — incremented every startStream() call. Late-resolving
+   * getUserMedia promises whose generation is stale immediately stop their
+   * tracks, preventing camera leaks on rapid open/close or facing toggles. */
+  const streamGenRef = useRef(0);
+  /** Conversation pinned for the current live session. Set on first response
+   * so subsequent frames stay in the same chat even if the user switches the
+   * active conversation in the sidebar. */
+  const liveConversationIdRef = useRef<string | null>(null);
   const [permissionError, setPermissionError] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
   const [zoomCaps, setZoomCaps] = useState<{
@@ -65,6 +73,9 @@ export function CameraOverlay({ onSnap }: CameraOverlayProps) {
 
   // ---- Stream lifecycle -----------------------------------------------------
   const stopStream = useCallback(() => {
+    // Invalidate any in-flight startStream so its resolution path won't
+    // reattach a camera after we've torn down.
+    streamGenRef.current++;
     const s = streamRef.current;
     if (s) {
       for (const t of s.getTracks()) t.stop();
@@ -81,6 +92,7 @@ export function CameraOverlay({ onSnap }: CameraOverlayProps) {
   const startStream = useCallback(async () => {
     setPermissionError(null);
     stopStream();
+    const myGen = ++streamGenRef.current;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
@@ -90,6 +102,12 @@ export function CameraOverlay({ onSnap }: CameraOverlayProps) {
         },
         audio: false,
       });
+      // If overlay closed or another startStream ran while we were waiting,
+      // immediately release this stream — never expose it to the UI.
+      if (myGen !== streamGenRef.current) {
+        for (const t of stream.getTracks()) t.stop();
+        return;
+      }
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -116,6 +134,8 @@ export function CameraOverlay({ onSnap }: CameraOverlayProps) {
       }
       if (caps.torch) setTorchSupported(true);
     } catch (err) {
+      // Stale rejections shouldn't surface either.
+      if (myGen !== streamGenRef.current) return;
       const e = err as DOMException;
       const name = e?.name || "";
       let msg = "Camera khulte parina.";
@@ -214,7 +234,11 @@ export function CameraOverlay({ onSnap }: CameraOverlayProps) {
       const fd = new FormData();
       fd.append("image", blob, "live.jpg");
       fd.append("mode", "live");
-      if (conversationId) fd.append("conversationId", conversationId);
+      // Pin the conversation to the *first* one resolved during this live
+      // session — if the user switches the active chat in the sidebar mid-
+      // stream, commentary stays in the original chat instead of leaking.
+      const targetConv = liveConversationIdRef.current ?? conversationId;
+      if (targetConv) fd.append("conversationId", targetConv);
 
       const res = await fetch(baseUrl("/vision/analyze"), {
         method: "POST",
@@ -228,16 +252,23 @@ export function CameraOverlay({ onSnap }: CameraOverlayProps) {
       const data = (await res.json()) as {
         text: string;
         conversationId: string | null;
+        duplicate?: boolean;
       };
+      // Lock in conversation id from server (covers auto-create case too).
+      if (!liveConversationIdRef.current && data.conversationId) {
+        liveConversationIdRef.current = data.conversationId;
+      }
       const text = (data.text || "").trim();
       if (!text) return;
-      if (!isMeaningfullyNew(lastReplyRef.current, text)) {
+      // Server already enforces dedup, but we mirror client-side as a fast
+      // path for status UI and to avoid a wasted invalidate round-trip.
+      const localDup = !isMeaningfullyNew(lastReplyRef.current, text);
+      if (data.duplicate || localDup) {
         setLiveStatus("Same scene — skipped");
         return;
       }
       lastReplyRef.current = text;
       setLiveStatus(text.length > 60 ? text.slice(0, 60) + "…" : text);
-      // Refresh the chat so the persisted assistant message appears.
       if (data.conversationId) {
         qc.invalidateQueries({
           queryKey: conversationKeys.detail(data.conversationId),
@@ -283,13 +314,34 @@ export function CameraOverlay({ onSnap }: CameraOverlayProps) {
     if (mode !== "live" && isLive) setLive(false);
   }, [mode, isLive, setLive]);
 
-  // Reset live tracking when overlay closes.
+  // Reset live tracking when overlay closes or live stops.
   useEffect(() => {
     if (!isOpen) {
       lastReplyRef.current = null;
+      liveConversationIdRef.current = null;
       setLiveStatus(null);
     }
   }, [isOpen]);
+  useEffect(() => {
+    if (!isLive) liveConversationIdRef.current = null;
+  }, [isLive]);
+
+  // Pause live capture + release stream when the tab is hidden — browsers
+  // throttle background tabs anyway, and burning vision tokens / camera
+  // power while invisible is exactly the abuse case we want to avoid.
+  useEffect(() => {
+    if (!isOpen) return;
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        if (isLive) setLive(false);
+        stopStream();
+      } else if (document.visibilityState === "visible" && !streamRef.current) {
+        void startStream();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, [isOpen, isLive, setLive, startStream, stopStream]);
 
   if (!isOpen) return null;
 
