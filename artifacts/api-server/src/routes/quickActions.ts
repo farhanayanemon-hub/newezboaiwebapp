@@ -103,14 +103,31 @@ router.post("/reorder", async (req, res) => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  await Promise.all(
-    parsed.data.ids.map((id, idx) =>
-      db
+  // Validate the payload covers exactly the current set of actions so a
+  // stale client cannot leave the order in a fragmented state.
+  const existing = await db
+    .select({ id: quickActionsTable.id })
+    .from(quickActionsTable);
+  const existingIds = new Set(existing.map((r) => r.id));
+  const payloadIds = new Set(parsed.data.ids);
+  if (
+    parsed.data.ids.length !== existingIds.size ||
+    parsed.data.ids.length !== payloadIds.size ||
+    [...existingIds].some((id) => !payloadIds.has(id))
+  ) {
+    res.status(409).json({
+      error: "Reorder payload does not match current actions; refresh and retry.",
+    });
+    return;
+  }
+  await db.transaction(async (tx) => {
+    for (let idx = 0; idx < parsed.data.ids.length; idx++) {
+      await tx
         .update(quickActionsTable)
         .set({ sortOrder: idx, updatedAt: new Date() })
-        .where(eq(quickActionsTable.id, id)),
-    ),
-  );
+        .where(eq(quickActionsTable.id, parsed.data.ids[idx]));
+    }
+  });
   res.json({ ok: true });
 });
 

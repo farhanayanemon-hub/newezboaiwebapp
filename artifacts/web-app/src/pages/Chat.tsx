@@ -98,12 +98,25 @@ export default function ChatPage() {
    * an assistant reply into the React Query cache. Used by both manual
    * input and quick actions.
    */
+  // Single-flight lock for new-conversation streams so a chip click and an
+  // input send can't race to spawn two parallel conversations before the
+  // first SSE `conversation` event resolves.
+  const newConvLock = useRef(false);
+
   const runStream = async (prompt: string, taskType?: string) => {
     const trimmed = prompt.trim();
     if (!trimmed) return;
 
+    if (!activeConversationId) {
+      if (newConvLock.current) return;
+      newConvLock.current = true;
+    }
+
     const optimisticConvId = activeConversationId ?? `pending-${nanoid(8)}`;
-    if (abortControllers.current.has(optimisticConvId)) return;
+    if (abortControllers.current.has(optimisticConvId)) {
+      if (!activeConversationId) newConvLock.current = false;
+      return;
+    }
 
     const userMessage: Message = {
       id: `local-${nanoid(8)}`,
@@ -225,6 +238,7 @@ export default function ChatPage() {
         markStreaming(resolvedConvId, false);
       }
       markStreaming(optimisticConvId, false);
+      newConvLock.current = false;
     }
   };
 

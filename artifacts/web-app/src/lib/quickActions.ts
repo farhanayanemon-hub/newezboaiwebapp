@@ -164,6 +164,16 @@ export const BUILT_IN_ACTIONS: BuiltInQuickAction[] = [
  * is wrapped in clear delimiters so a template like "{input}" cannot be
  * weaponized to break out of the system prompt or inject new instructions.
  */
+/**
+ * Neutralize any literal sentinel tokens a user might have pasted so they
+ * cannot prematurely close the envelope and inject instructions outside it.
+ */
+function escapeSentinels(s: string): string {
+  return s
+    .replace(/<<<USER_CONTENT_END>>>/g, "<<<USER_CONTENT_END_>>>")
+    .replace(/<<<USER_CONTENT_START>>>/g, "<<<USER_CONTENT_START_>>>");
+}
+
 export function fillTemplate(
   template: string,
   vars: Record<string, string>,
@@ -174,7 +184,7 @@ export function fillTemplate(
     const raw = vars[key];
     if (raw === undefined) return `{${key}}`;
     if (key === "input" && wrapInput) {
-      return `<<<USER_CONTENT_START>>>\n${raw}\n<<<USER_CONTENT_END>>>`;
+      return `<<<USER_CONTENT_START>>>\n${escapeSentinels(raw)}\n<<<USER_CONTENT_END>>>`;
     }
     return raw;
   });
