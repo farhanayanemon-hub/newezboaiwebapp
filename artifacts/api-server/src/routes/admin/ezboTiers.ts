@@ -39,27 +39,31 @@ router.put("/", async (req, res) => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  for (const t of parsed.data.tiers) {
-    await db
-      .insert(ezboTierPromptsTable)
-      .values({
-        tier: t.tier,
-        label: t.label,
-        description: t.description,
-        taskType: t.taskType,
-        promptAddon: t.promptAddon,
-      })
-      .onConflictDoUpdate({
-        target: ezboTierPromptsTable.tier,
-        set: {
+  // Wrap the multi-row upsert in a transaction so a failure mid-loop never
+  // leaves the tier table in a partially-updated state.
+  await db.transaction(async (tx) => {
+    for (const t of parsed.data.tiers) {
+      await tx
+        .insert(ezboTierPromptsTable)
+        .values({
+          tier: t.tier,
           label: t.label,
           description: t.description,
           taskType: t.taskType,
           promptAddon: t.promptAddon,
-          updatedAt: sql`now()`,
-        },
-      });
-  }
+        })
+        .onConflictDoUpdate({
+          target: ezboTierPromptsTable.tier,
+          set: {
+            label: t.label,
+            description: t.description,
+            taskType: t.taskType,
+            promptAddon: t.promptAddon,
+            updatedAt: sql`now()`,
+          },
+        });
+    }
+  });
   invalidateEzboTierCache();
   res.json({ ok: true });
 });

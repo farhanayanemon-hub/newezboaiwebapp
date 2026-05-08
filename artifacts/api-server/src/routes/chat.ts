@@ -98,8 +98,11 @@ router.post("/stream", async (req, res) => {
   // rather than raw `provider:model` strings. Translate the tier into a
   // taskType + system-prompt addon, and never forward the synthetic id to the
   // router (it has no idea what `ezbo:*` means).
-  const ezboTier = parseEzboModelId(rawModelOverride);
-  const modelOverride = ezboTier ? undefined : rawModelOverride;
+  const ezboTierStub = parseEzboModelId(rawModelOverride);
+  const modelOverride = ezboTierStub ? undefined : rawModelOverride;
+  // Resolve the DB-backed tier config up front so admin edits to taskType
+  // (and promptAddon) take effect immediately on the next chat turn.
+  const resolvedTier = ezboTierStub ? await getEzboTier(ezboTierStub.id) : null;
 
   const attachments = attachmentIds.length
     ? await loadAttachments(attachmentIds)
@@ -110,7 +113,7 @@ router.post("/stream", async (req, res) => {
   // tier's preferred chat task type so image questions hit a vision model.
   const taskType: TaskType =
     parsed.data.taskType ??
-    (hasImage ? "vision" : ezboTier ? ezboTier.taskType : "chat-smart");
+    (hasImage ? "vision" : resolvedTier ? resolvedTier.taskType : "chat-smart");
 
   // Resolve conversation: use provided, or auto-create.
   let conversationId = parsed.data.conversationId;
@@ -220,9 +223,8 @@ router.post("/stream", async (req, res) => {
   }
   void savedUserMessageId;
 
-  // Pull the latest (admin-editable) tier config from the DB so prompt
-  // overrides made in /admin → "Ezbo Models" take effect on the next chat.
-  const resolvedTier = ezboTier ? await getEzboTier(ezboTier.id) : null;
+  // resolvedTier was loaded above (from the DB) so admin-editable taskType
+  // and prompt addons both take effect immediately on the next chat turn.
   const systemPrompt = await buildSystemPrompt(resolvedTier);
   const fullMessages: ChatMessage[] = [
     { role: "system", content: systemPrompt },
