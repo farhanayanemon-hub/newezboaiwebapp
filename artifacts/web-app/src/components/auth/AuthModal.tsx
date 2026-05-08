@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { apiClient, ApiError } from "@/lib/api";
 import { useAuth, type AuthUser } from "@/lib/auth";
+import { ForgotPasswordModal } from "@/components/auth/ForgotPasswordModal";
 
 interface AuthModalProps {
   open: boolean;
@@ -21,6 +22,7 @@ export function AuthModal({ open, onOpenChange, defaultMode = "login" }: AuthMod
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [forgotOpen, setForgotOpen] = useState(false);
 
   const reset = () => {
     setError(null);
@@ -51,6 +53,12 @@ export function AuthModal({ open, onOpenChange, defaultMode = "login" }: AuthMod
     } catch (err) {
       if (err instanceof ApiError) {
         if (err.status === 401) setError("Invalid email or password.");
+        else if (err.status === 403) {
+          const msg = (err.body && typeof err.body === "object" && "error" in err.body)
+            ? String((err.body as { error: string }).error)
+            : "This account has been suspended.";
+          setError(msg);
+        }
         else if (err.status === 409) setError("Email already registered.");
         else if (err.status === 429) setError("Too many attempts. Please wait and try again.");
         else if (err.status === 400) setError("Please check your input. Password must be at least 8 characters.");
@@ -130,10 +138,21 @@ export function AuthModal({ open, onOpenChange, defaultMode = "login" }: AuthMod
                 {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {mode === "login" ? "Log in" : "Create account"}
               </Button>
+              {mode === "login" && (
+                <button
+                  type="button"
+                  onClick={() => setForgotOpen(true)}
+                  className="block w-full text-center text-xs text-muted-foreground hover:text-foreground hover:underline"
+                  data-testid="button-forgot-password"
+                >
+                  Forgot password?
+                </button>
+              )}
             </form>
           </TabsContent>
         </Tabs>
       </DialogContent>
+      <ForgotPasswordModal open={forgotOpen} onOpenChange={setForgotOpen} defaultEmail={email} />
     </Dialog>
   );
 }

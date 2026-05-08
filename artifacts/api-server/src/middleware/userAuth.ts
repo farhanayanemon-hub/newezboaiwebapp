@@ -88,15 +88,7 @@ export async function getUserFromRequest(req: Request): Promise<User | null> {
   const token = req.cookies?.[COOKIE_NAME] as string | undefined;
   if (!token) return null;
   const rows = await db
-    .select({
-      id: usersTable.id,
-      email: usersTable.email,
-      passwordHash: usersTable.passwordHash,
-      name: usersTable.name,
-      role: usersTable.role,
-      createdAt: usersTable.createdAt,
-      updatedAt: usersTable.updatedAt,
-    })
+    .select()
     .from(userSessionsTable)
     .innerJoin(usersTable, eq(usersTable.id, userSessionsTable.userId))
     .where(
@@ -106,7 +98,12 @@ export async function getUserFromRequest(req: Request): Promise<User | null> {
       ),
     )
     .limit(1);
-  return rows[0] ?? null;
+  const row = rows[0];
+  if (!row) return null;
+  // Banned users may have a live session row from before the ban; reject
+  // them here so every authenticated route immediately stops working.
+  if (row.users.bannedAt) return null;
+  return row.users;
 }
 
 export function requireUser(): (

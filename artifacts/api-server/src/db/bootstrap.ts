@@ -162,6 +162,97 @@ export async function ensureProjects(): Promise<void> {
 }
 
 /**
+ * Idempotent migration for Phase 4 (admin user mgmt + SMTP).
+ *  - users: nullable banned_at, ban_reason, email_verified_at, last_login_at
+ *  - email_verification_tokens, password_reset_tokens
+ *  - smtp_config (single-row)
+ *  - admin_audit_log
+ * Safe to run repeatedly; existing users default to "verified == NULL"
+ * which the auth code interprets as "verification not required yet".
+ */
+export async function ensureAdminPhase4(): Promise<void> {
+  try {
+    await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS banned_at timestamp with time zone`);
+    await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS ban_reason text`);
+    await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified_at timestamp with time zone`);
+    await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at timestamp with time zone`);
+
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS email_verification_tokens (
+        id serial PRIMARY KEY,
+        token_hash text NOT NULL UNIQUE,
+        user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        email text NOT NULL,
+        expires_at timestamp with time zone NOT NULL,
+        consumed_at timestamp with time zone,
+        created_at timestamp with time zone DEFAULT now() NOT NULL
+      )
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS email_verification_tokens_user_idx
+      ON email_verification_tokens (user_id)
+    `);
+
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS password_reset_tokens (
+        id serial PRIMARY KEY,
+        token_hash text NOT NULL UNIQUE,
+        user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        expires_at timestamp with time zone NOT NULL,
+        consumed_at timestamp with time zone,
+        created_at timestamp with time zone DEFAULT now() NOT NULL
+      )
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS password_reset_tokens_user_idx
+      ON password_reset_tokens (user_id)
+    `);
+
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS smtp_config (
+        id serial PRIMARY KEY,
+        host text NOT NULL DEFAULT '',
+        port integer NOT NULL DEFAULT 587,
+        secure boolean NOT NULL DEFAULT false,
+        username text NOT NULL DEFAULT '',
+        encrypted_password text NOT NULL DEFAULT '',
+        from_address text NOT NULL DEFAULT '',
+        from_name text NOT NULL DEFAULT '',
+        enabled boolean NOT NULL DEFAULT false,
+        updated_at timestamp with time zone DEFAULT now() NOT NULL
+      )
+    `);
+    // Ensure the singleton row exists so GET /admin/smtp always finds it.
+    await db.execute(sql`
+      INSERT INTO smtp_config (id) VALUES (1) ON CONFLICT (id) DO NOTHING
+    `);
+
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS admin_audit_log (
+        id serial PRIMARY KEY,
+        action text NOT NULL,
+        target_user_id uuid,
+        actor_ip text NOT NULL DEFAULT '',
+        metadata jsonb DEFAULT '{}'::jsonb,
+        created_at timestamp with time zone DEFAULT now() NOT NULL
+      )
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS admin_audit_log_action_idx
+      ON admin_audit_log (action, created_at)
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS admin_audit_log_target_idx
+      ON admin_audit_log (target_user_id)
+    `);
+
+    logger.info("admin Phase 4 tables + columns ensured");
+  } catch (err) {
+    logger.error({ err }, "failed to ensure admin Phase 4 schema");
+  }
+}
+
+/**
  * Idempotent creation of the browser_access_rules table. Drizzle-kit push
  * also knows about it, but we ensure it at runtime so a fresh deploy where
  * the operator skips `pnpm db push` doesn't 500 on the access-rules tab.

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ShieldCheck, KeyRound, Server, BarChart3, ListOrdered, Loader2, Lock, Shield, Sparkles } from "lucide-react";
+import { ShieldCheck, KeyRound, Server, BarChart3, ListOrdered, Loader2, Lock, Shield, Sparkles, Users, Mail } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AdminLogin } from "@/components/admin/AdminLogin";
@@ -10,6 +10,8 @@ import { UsageTab } from "@/components/admin/UsageTab";
 import { CredentialsTab } from "@/components/admin/CredentialsTab";
 import { AccessRulesTab } from "@/components/admin/AccessRulesTab";
 import { EzboTiersTab } from "@/components/admin/EzboTiersTab";
+import { UsersTab } from "@/components/admin/UsersTab";
+import { SmtpTab } from "@/components/admin/SmtpTab";
 import { Button } from "@/components/ui/button";
 import { apiClient } from "@/lib/api";
 
@@ -77,9 +79,15 @@ export default function AdminPage() {
         </div>
 
         <Tabs defaultValue="ezbo" className="w-full">
-          <TabsList className="grid w-full grid-cols-3 sm:w-auto sm:grid-cols-7">
+          <TabsList className="grid w-full grid-cols-3 sm:w-auto sm:grid-cols-9">
             <TabsTrigger value="ezbo" className="gap-1.5" data-testid="tab-ezbo">
               <Sparkles className="h-3.5 w-3.5" /> Ezbo Models
+            </TabsTrigger>
+            <TabsTrigger value="users" className="gap-1.5" data-testid="tab-users">
+              <Users className="h-3.5 w-3.5" /> Users
+            </TabsTrigger>
+            <TabsTrigger value="smtp" className="gap-1.5" data-testid="tab-smtp">
+              <Mail className="h-3.5 w-3.5" /> SMTP
             </TabsTrigger>
             <TabsTrigger value="providers" className="gap-1.5" data-testid="tab-providers">
               <KeyRound className="h-3.5 w-3.5" /> Providers
@@ -103,6 +111,12 @@ export default function AdminPage() {
 
           <TabsContent value="ezbo" className="mt-6">
             <EzboTiersTab />
+          </TabsContent>
+          <TabsContent value="users" className="mt-6">
+            <UsersTab />
+          </TabsContent>
+          <TabsContent value="smtp" className="mt-6">
+            <SmtpTab />
           </TabsContent>
           <TabsContent value="providers" className="mt-6">
             <ProvidersTab />

@@ -13,6 +13,8 @@ import FilesPage from "@/pages/Files";
 import RemindersPage from "@/pages/Reminders";
 import AutomationsPage from "@/pages/Automations";
 import AccountPage from "@/pages/Account";
+import ResetPasswordPage from "@/pages/ResetPassword";
+import VerifyEmailPage from "@/pages/VerifyEmail";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient({
@@ -36,6 +38,8 @@ function AppRoutes() {
       <Route path="/reminders" component={RemindersPage} />
       <Route path="/automations" component={AutomationsPage} />
       <Route path="/account" component={AccountPage} />
+      <Route path="/reset-password" component={ResetPasswordPage} />
+      <Route path="/verify-email" component={VerifyEmailPage} />
       <Route component={NotFound} />
     </Switch>
   );

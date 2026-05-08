@@ -7,6 +7,8 @@ import credentials from "./credentials";
 import automations from "./automations";
 import accessRules from "./accessRules";
 import ezboTiers from "./ezboTiers";
+import users from "./users";
+import smtp from "./smtp";
 
 const router: IRouter = Router();
 
@@ -18,5 +20,7 @@ router.use("/credentials", credentials);
 router.use("/automations", automations);
 router.use("/access-rules", accessRules);
 router.use("/ezbo-tiers", ezboTiers);
+router.use("/users", users);
+router.use("/smtp", smtp);
 
 export default router;
