@@ -11,6 +11,7 @@ import { ScreenShareOverlay } from "@/components/ScreenShareOverlay";
 import { useCameraStore } from "@/stores/cameraStore";
 import { useScreenShareStore } from "@/stores/screenShareStore";
 import { useBrowserStore } from "@/stores/browserStore";
+import { useChatStore } from "@/stores/chatStore";
 
 interface InputBarProps {
   value: string;
@@ -62,6 +63,7 @@ export function InputBar({
   const openCamera = useCameraStore((s) => s.open);
   const openScreenShare = useScreenShareStore((s) => s.open);
   const browser = useBrowserStore();
+  const activeConversationId = useChatStore((s) => s.activeConversationId);
   const [launchingWeb, setLaunchingWeb] = useState(false);
 
   const launchWebTask = async (promptText: string) => {
@@ -82,7 +84,10 @@ export function InputBar({
       const runRes = await fetch(`${API_BASE}/browser/sessions/${sessionId}/run`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: cleanPrompt }),
+        body: JSON.stringify({
+          prompt: cleanPrompt,
+          ...(activeConversationId ? { conversationId: activeConversationId } : {}),
+        }),
       });
       if (!runRes.ok) {
         const body = await runRes.json().catch(() => ({}));

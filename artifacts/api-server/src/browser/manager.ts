@@ -10,6 +10,13 @@ import { clearSession, publish } from "./wsHub";
  * uses ~150–250 MB resident.
  */
 
+export interface PendingConfirmation {
+  id: string;
+  question: string;
+  detail?: string;
+  resolve: (approved: boolean) => void;
+}
+
 export interface BrowserSession {
   id: string;
   browser: Browser;
@@ -20,6 +27,10 @@ export interface BrowserSession {
   busy: boolean;
   /** Set when an in-flight agent run is being signaled to stop. */
   abortRequested: boolean;
+  /** Optional conversation to write the agent's final answer into. */
+  conversationId?: string | null;
+  /** A confirm() tool call awaiting user approval, if any. */
+  pendingConfirm?: PendingConfirmation | null;
 }
 
 const IDLE_MS = 15 * 60 * 1000;
@@ -89,6 +100,8 @@ export async function createSession(): Promise<BrowserSession> {
     lastActivity: now,
     busy: false,
     abortRequested: false,
+    conversationId: null,
+    pendingConfirm: null,
   };
   sessions.set(id, session);
   logger.info({ sessionId: id, total: sessions.size }, "browser session created");
@@ -106,6 +119,13 @@ export async function closeSession(id: string, reason = "manual"): Promise<boole
   const s = sessions.get(id);
   if (!s) return false;
   sessions.delete(id);
+  // Unblock any in-flight confirmation so the awaiting tool call can return
+  // a denied result and the agent loop can exit cleanly. Without this, the
+  // run promise would dangle until process exit.
+  if (s.pendingConfirm) {
+    s.pendingConfirm.resolve(false);
+    s.pendingConfirm = null;
+  }
   try {
     await s.context.close();
   } catch {
@@ -139,7 +159,30 @@ export function requestAbort(id: string): boolean {
   const s = sessions.get(id);
   if (!s) return false;
   s.abortRequested = true;
+  // If a confirm() is hanging, unblock it as denied so the loop can exit.
+  if (s.pendingConfirm) {
+    s.pendingConfirm.resolve(false);
+    s.pendingConfirm = null;
+  }
   return true;
+}
+
+/** Resolve the session's pending confirmation, if any. The confirmId guards
+ *  against a stale/replayed approval landing on a *later* confirm prompt
+ *  in the same session. */
+export function answerConfirmation(
+  id: string,
+  approved: boolean,
+  confirmId?: string,
+): { ok: true } | { ok: false; reason: "no_pending" | "id_mismatch" } {
+  const s = sessions.get(id);
+  if (!s || !s.pendingConfirm) return { ok: false, reason: "no_pending" };
+  if (confirmId && s.pendingConfirm.id !== confirmId) {
+    return { ok: false, reason: "id_mismatch" };
+  }
+  s.pendingConfirm.resolve(approved);
+  s.pendingConfirm = null;
+  return { ok: true };
 }
 
 /** Close every session — used at process shutdown. */

@@ -1,8 +1,9 @@
 import { createServer } from "node:http";
 import app from "./app";
 import { logger } from "./lib/logger";
-import { ensureMessagesFts } from "./db/bootstrap";
+import { ensureMessagesFts, ensureBrowserAccessRules } from "./db/bootstrap";
 import { startReminderScheduler } from "./services/scheduler";
+import { startAutomationsScheduler } from "./services/automationsScheduler";
 import { attachBrowserWs } from "./browser/wsServer";
 import { closeAllSessions } from "./browser/manager";
 
@@ -22,7 +23,9 @@ if (Number.isNaN(port) || port <= 0) {
 
 async function start(): Promise<void> {
   await ensureMessagesFts();
+  await ensureBrowserAccessRules();
   startReminderScheduler();
+  startAutomationsScheduler();
 
   // We use a raw http.Server (not app.listen) so we can attach the
   // WebSocket upgrade handler for the browser-agent live preview.

@@ -44,3 +44,29 @@ export async function ensureMessagesFts(): Promise<void> {
     }
   }
 }
+
+/**
+ * Idempotent creation of the browser_access_rules table. Drizzle-kit push
+ * also knows about it, but we ensure it at runtime so a fresh deploy where
+ * the operator skips `pnpm db push` doesn't 500 on the access-rules tab.
+ */
+export async function ensureBrowserAccessRules(): Promise<void> {
+  try {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS browser_access_rules (
+        id serial PRIMARY KEY,
+        host text NOT NULL,
+        mode text NOT NULL,
+        note text DEFAULT '',
+        created_at timestamp with time zone DEFAULT now() NOT NULL
+      )
+    `);
+    await db.execute(sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS browser_access_rules_host_uq
+      ON browser_access_rules (host)
+    `);
+    logger.info("browser_access_rules table ensured");
+  } catch (err) {
+    logger.error({ err }, "failed to ensure browser_access_rules");
+  }
+}

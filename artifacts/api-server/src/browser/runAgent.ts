@@ -1,6 +1,12 @@
+import { randomUUID } from "node:crypto";
 import OpenAI from "openai";
 import { eq } from "drizzle-orm";
-import { db, providerKeysTable } from "@workspace/db";
+import {
+  db,
+  providerKeysTable,
+  conversationsTable,
+  messagesTable,
+} from "@workspace/db";
 import { decrypt } from "../ai/crypto";
 import { logger } from "../lib/logger";
 import { findTool, toOpenAITools, type ToolContext } from "./tools";
@@ -22,7 +28,8 @@ Niyom:
 - Page er content jante read_page use koro — directly extract korar age.
 - Jodi ekta selector kaaj na kore, text diye click try koro, ba scroll diye element khujo.
 - Login lage emon kaj korte chao na — user er help chao final answer e.
-- Destructive action (kichu kena, payment, delete, send) korar age user er kache jiggesh koro — final answer e likhe rakho ki korte cheyechile, kintu auto submit koro na.
+- Destructive action (kichu kena, payment, delete, send, submit jate change save hoye jay) korar age "confirm" tool call koro — user approval na elei action koro na.
+- Login lagle prothome get_credentials check koro — saved thakle fill_credentials use koro (password tomar context e ase na, server e fill hoy).
 - Jodi blocked URL paw ba captcha hoy, sundor vabe explain koro user ke kothai stuck.
 - Maximum 30 steps. Jodi ar progress na hoy, jato porjonto info peyecho ta diye final answer dao.
 
@@ -68,12 +75,31 @@ export interface RunAgentResult {
 export async function runAgent(args: {
   sessionId: string;
   prompt: string;
+  /** When set, the user-prompt + final answer are persisted as chat messages. */
+  conversationId?: string | null;
 }): Promise<RunAgentResult> {
   const session = getSession(args.sessionId);
   if (!session) throw new Error(`Session ${args.sessionId} not found`);
   if (session.busy) throw new Error("Session is already running an agent loop");
   session.busy = true;
   session.abortRequested = false;
+  session.conversationId = args.conversationId ?? null;
+
+  // If a chat conversation is bound, write the user's request into it now so
+  // the message order is correct even if the agent crashes mid-run.
+  if (args.conversationId) {
+    try {
+      await db.insert(messagesTable).values({
+        conversationId: args.conversationId,
+        role: "user",
+        content: args.prompt,
+        provider: null,
+        model: null,
+      });
+    } catch (e) {
+      logger.warn({ err: e, conversationId: args.conversationId }, "agent: write user msg failed");
+    }
+  }
 
   const result: RunAgentResult = { finalText: "", steps: 0, stoppedReason: "done" };
   try {
@@ -83,6 +109,51 @@ export async function runAgent(args: {
     const toolCtx: ToolContext = {
       page: session.page,
       onScreenshot: (b64) => publish(args.sessionId, { type: "screenshot", payload: { b64 } }),
+      requestConfirmation: (question, detail) =>
+        new Promise<boolean>((resolve) => {
+          const s = getSession(args.sessionId);
+          if (!s) {
+            resolve(false);
+            return;
+          }
+          // Unattended runs (no chat conversation = no UI panel) auto-deny
+          // immediately. Otherwise we time out after CONFIRM_TIMEOUT_MS so
+          // a forgotten dialog can't hang the agent forever.
+          if (!args.conversationId) {
+            publish(args.sessionId, {
+              type: "confirm_resolved",
+              payload: { approved: false, reason: "unattended" },
+            });
+            resolve(false);
+            return;
+          }
+          let settled = false;
+          const finish = (approved: boolean, reason: string) => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timer);
+            // Clear pending only if it's still ours.
+            if (s.pendingConfirm?.id === pendingId) s.pendingConfirm = null;
+            publish(args.sessionId, {
+              type: "confirm_resolved",
+              payload: { id: pendingId, approved, reason },
+            });
+            resolve(approved);
+          };
+          const pendingId = randomUUID();
+          const CONFIRM_TIMEOUT_MS = 2 * 60 * 1000;
+          const timer = setTimeout(() => finish(false, "timeout"), CONFIRM_TIMEOUT_MS);
+          s.pendingConfirm = {
+            id: pendingId,
+            question,
+            detail,
+            resolve: (approved) => finish(approved, "user"),
+          };
+          publish(args.sessionId, {
+            type: "confirm_request",
+            payload: { id: pendingId, question, detail },
+          });
+        }),
     };
 
     publish(args.sessionId, { type: "plan", payload: { prompt: args.prompt, model } });
@@ -208,15 +279,46 @@ export async function runAgent(args: {
       publish(args.sessionId, { type: "done", payload: { stopped: "aborted" } });
     }
 
+    // Persist the agent's final answer to the bound conversation, if any.
+    if (args.conversationId && (result.finalText || result.error)) {
+      try {
+        const content = result.finalText
+          ? result.finalText
+          : `Web task error: ${result.error ?? "unknown"}`;
+        await db.insert(messagesTable).values({
+          conversationId: args.conversationId,
+          role: "assistant",
+          content,
+          provider: "browser-agent",
+          model,
+        });
+        await db
+          .update(conversationsTable)
+          .set({ updatedAt: new Date() })
+          .where(eq(conversationsTable.id, args.conversationId));
+      } catch (e) {
+        logger.warn(
+          { err: e, conversationId: args.conversationId },
+          "agent: write assistant msg failed",
+        );
+      }
+    }
     return result;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     logger.error({ err, sessionId: args.sessionId }, "browser agent error");
     publish(args.sessionId, { type: "error", payload: { message } });
+    publish(args.sessionId, { type: "done", payload: { stopped: "error" } });
     result.stoppedReason = "error";
     result.error = message;
     return result;
   } finally {
     session.busy = false;
+    if (session.pendingConfirm) {
+      // Defensive: if we exited while a confirm was pending, deny it so any
+      // downstream awaiter unblocks.
+      session.pendingConfirm.resolve(false);
+      session.pendingConfirm = null;
+    }
   }
 }

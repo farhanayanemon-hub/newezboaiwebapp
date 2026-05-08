@@ -15,7 +15,9 @@ export type BrowserEventType =
   | "thinking"
   | "error"
   | "done"
-  | "closed";
+  | "closed"
+  | "confirm_request"
+  | "confirm_resolved";
 
 export interface BrowserEvent {
   type: BrowserEventType;

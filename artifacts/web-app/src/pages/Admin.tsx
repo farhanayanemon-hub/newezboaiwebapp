@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ShieldCheck, KeyRound, Server, BarChart3, ListOrdered, Loader2 } from "lucide-react";
+import { ShieldCheck, KeyRound, Server, BarChart3, ListOrdered, Loader2, Lock, Shield } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AdminLogin } from "@/components/admin/AdminLogin";
@@ -7,6 +7,8 @@ import { ProvidersTab } from "@/components/admin/ProvidersTab";
 import { ModelsTab } from "@/components/admin/ModelsTab";
 import { RoutingTab } from "@/components/admin/RoutingTab";
 import { UsageTab } from "@/components/admin/UsageTab";
+import { CredentialsTab } from "@/components/admin/CredentialsTab";
+import { AccessRulesTab } from "@/components/admin/AccessRulesTab";
 import { Button } from "@/components/ui/button";
 import { apiClient } from "@/lib/api";
 
@@ -74,7 +76,7 @@ export default function AdminPage() {
         </div>
 
         <Tabs defaultValue="providers" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 sm:w-auto sm:grid-cols-4">
+          <TabsList className="grid w-full grid-cols-3 sm:w-auto sm:grid-cols-6">
             <TabsTrigger value="providers" className="gap-1.5" data-testid="tab-providers">
               <KeyRound className="h-3.5 w-3.5" /> Providers
             </TabsTrigger>
@@ -86,6 +88,12 @@ export default function AdminPage() {
             </TabsTrigger>
             <TabsTrigger value="usage" className="gap-1.5" data-testid="tab-usage">
               <BarChart3 className="h-3.5 w-3.5" /> Usage
+            </TabsTrigger>
+            <TabsTrigger value="credentials" className="gap-1.5" data-testid="tab-credentials">
+              <Lock className="h-3.5 w-3.5" /> Vault
+            </TabsTrigger>
+            <TabsTrigger value="access" className="gap-1.5" data-testid="tab-access">
+              <Shield className="h-3.5 w-3.5" /> Access
             </TabsTrigger>
           </TabsList>
 
@@ -100,6 +108,12 @@ export default function AdminPage() {
           </TabsContent>
           <TabsContent value="usage" className="mt-6">
             <UsageTab />
+          </TabsContent>
+          <TabsContent value="credentials" className="mt-6">
+            <CredentialsTab />
+          </TabsContent>
+          <TabsContent value="access" className="mt-6">
+            <AccessRulesTab />
           </TabsContent>
         </Tabs>
       </div>

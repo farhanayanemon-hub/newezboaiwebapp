@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { X, StopCircle, Loader2, Globe } from "lucide-react";
+import { X, StopCircle, Loader2, Globe, ShieldAlert, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useBrowserStore, type BrowserActionEntry } from "@/stores/browserStore";
@@ -23,6 +23,7 @@ export function BrowserPreviewPanel() {
     actions,
     finalText,
     error,
+    pendingConfirm,
     close,
     setScreenshot,
     pushAction,
@@ -30,6 +31,7 @@ export function BrowserPreviewPanel() {
     setFinalText,
     setError,
     setSession,
+    setPendingConfirm,
     reset,
   } = useBrowserStore();
 
@@ -85,8 +87,26 @@ export function BrowserPreviewPanel() {
             break;
           case "done":
             setBusy(false);
+            setPendingConfirm(null);
             setFinalText(typeof ev.payload?.text === "string" ? ev.payload.text : "");
             pushAction({ kind: "done", label: "Done" });
+            break;
+          case "confirm_request":
+            if (
+              typeof ev.payload?.id === "string" &&
+              typeof ev.payload?.question === "string"
+            ) {
+              setPendingConfirm({
+                id: ev.payload.id,
+                question: ev.payload.question,
+                detail: typeof ev.payload?.detail === "string" ? ev.payload.detail : undefined,
+              });
+              pushAction({
+                kind: "action",
+                label: "Confirmation requested",
+                detail: ev.payload.question,
+              });
+            }
             break;
         }
       } catch {
@@ -97,7 +117,21 @@ export function BrowserPreviewPanel() {
     return () => {
       try { ws.close(); } catch { /* noop */ }
     };
-  }, [sessionId, isOpen, setScreenshot, pushAction, setBusy, setError, setFinalText]);
+  }, [sessionId, isOpen, setScreenshot, pushAction, setBusy, setError, setFinalText, setPendingConfirm]);
+
+  const respondConfirm = async (approved: boolean) => {
+    if (!sessionId || !pendingConfirm) return;
+    setPendingConfirm(null);
+    try {
+      await fetch(`${API_BASE}/browser/sessions/${sessionId}/confirm`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ approved, confirmId: pendingConfirm.id }),
+      });
+    } catch {
+      /* the server will time out on its end */
+    }
+  };
 
   // If the user navigates away or closes the tab, free the server-side
   // session so the (small) concurrent-session pool doesn't leak. We use
@@ -194,6 +228,42 @@ export function BrowserPreviewPanel() {
                   )}
                 </div>
               </ScrollArea>
+              {pendingConfirm && (
+                <div
+                  className="border-t border-border bg-amber-50 px-3 py-3 text-xs dark:bg-amber-900/20"
+                  data-testid="panel-browser-confirm"
+                >
+                  <div className="mb-2 flex items-center gap-1.5 font-medium text-amber-900 dark:text-amber-200">
+                    <ShieldAlert className="h-3.5 w-3.5" />
+                    Confirmation needed
+                  </div>
+                  <p className="mb-2 whitespace-pre-wrap leading-snug text-foreground">
+                    {pendingConfirm.question}
+                  </p>
+                  {pendingConfirm.detail && (
+                    <p className="mb-2 whitespace-pre-wrap text-[11px] text-muted-foreground">
+                      {pendingConfirm.detail}
+                    </p>
+                  )}
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      onClick={() => respondConfirm(true)}
+                      data-testid="button-confirm-approve"
+                    >
+                      <Check className="mr-1 h-3 w-3" /> Approve
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => respondConfirm(false)}
+                      data-testid="button-confirm-deny"
+                    >
+                      Deny
+                    </Button>
+                  </div>
+                </div>
+              )}
               {(finalText || error) && (
                 <div
                   className={cn(

@@ -1,6 +1,9 @@
 import { z } from "zod";
 import type { Page } from "playwright";
-import { assertSafeUrl } from "./urlGuard";
+import { eq } from "drizzle-orm";
+import { db, siteCredentialsTable } from "@workspace/db";
+import { decrypt } from "../ai/crypto";
+import { assertSafeResolved } from "./urlGuard";
 
 /**
  * Tool registry exposed to the AI agent. Each tool has a Zod schema for its
@@ -13,6 +16,8 @@ export interface ToolContext {
   page: Page;
   /** Captures an updated screenshot to broadcast after each action. */
   onScreenshot?: (b64: string) => void;
+  /** Asks the user a yes/no question; returns true if approved. */
+  requestConfirmation?: (question: string, detail?: string) => Promise<boolean>;
 }
 
 export interface ToolDef<S extends z.ZodTypeAny = z.ZodTypeAny> {
@@ -44,11 +49,25 @@ const navigate: ToolDef = {
     "Only http(s) URLs are allowed; private/internal hosts are blocked.",
   schema: z.object({ url: z.string().describe("Full URL including scheme.") }),
   async execute(ctx, { url }) {
-    const safe = assertSafeUrl(url);
+    // Async check covers DNS rebinding + admin allow/block list.
+    const safe = await assertSafeResolved(url);
     await ctx.page.goto(safe.toString(), { waitUntil: "domcontentloaded" });
+    // Re-validate the *final* URL — page.goto may follow 30x redirects to
+    // a host the agent never explicitly approved. If the landing page is
+    // unsafe, blank the page and surface an error instead of letting the
+    // agent operate against it.
+    const finalUrl = ctx.page.url();
+    try {
+      await assertSafeResolved(finalUrl);
+    } catch (err) {
+      await ctx.page.goto("about:blank").catch(() => undefined);
+      throw new Error(
+        `Redirected to unsafe URL (${finalUrl}): ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
     const title = await ctx.page.title().catch(() => "");
     await snap(ctx);
-    return { ok: true, finalUrl: ctx.page.url(), title: truncate(title, 300) };
+    return { ok: true, finalUrl, title: truncate(title, 300) };
   },
 };
 
@@ -117,9 +136,6 @@ const screenshot: ToolDef = {
     const buf = await ctx.page.screenshot({ type: "jpeg", quality: 70 });
     const b64 = buf.toString("base64");
     if (ctx.onScreenshot) ctx.onScreenshot(b64);
-    // We hand a small note back to the LLM, not the bytes — the bytes already
-    // went over the WS to the user UI. Including image bytes in the model
-    // history is an avoidable token bomb.
     return { ok: true, captured: true, bytes: buf.length };
   },
 };
@@ -144,9 +160,6 @@ const readPage: ToolDef = {
     "understand its structure. Heavy whitespace is collapsed; max 8 KB.",
   schema: z.object({}),
   async execute(ctx) {
-    // The callback runs in the page's browser context; DOM globals exist
-    // there. We type the function loosely to avoid pulling lib.dom into the
-    // server's tsconfig.
     const evaluator = (() => {
       const win = globalThis as unknown as { document: { body: unknown } };
       const skip = new Set(["SCRIPT", "STYLE", "NOSCRIPT"]);
@@ -221,6 +234,102 @@ const scroll: ToolDef = {
   },
 };
 
+// ---------- Safety + credentials ----------
+
+const confirm: ToolDef = {
+  name: "confirm",
+  description:
+    "REQUIRED before any destructive action (purchase, payment, send, " +
+    "delete, submit a form that commits a change). Pauses execution and " +
+    "asks the user to approve. Returns {approved:true|false}. If denied, " +
+    "give up and finish with a final answer explaining what was held back.",
+  schema: z.object({
+    question: z.string().min(3).describe("Short Bangla question for the user."),
+    detail: z.string().optional().describe("Extra context the user should see."),
+  }),
+  async execute(ctx, { question, detail }) {
+    if (!ctx.requestConfirmation) {
+      // No bridge wired — fail closed.
+      return { ok: true, approved: false, reason: "no confirmation channel" };
+    }
+    const approved = await ctx.requestConfirmation(question, detail);
+    return { ok: true, approved };
+  },
+};
+
+/** Look up a credential row for a host (exact match on registrable domain). */
+async function fetchCredential(host: string): Promise<{
+  domain: string;
+  username: string;
+  password: string;
+} | null> {
+  const h = host.toLowerCase().replace(/^www\./, "");
+  // Try exact, then strip-one-label (login.foo.com → foo.com).
+  const candidates = [host.toLowerCase(), h];
+  const parts = h.split(".");
+  if (parts.length > 2) candidates.push(parts.slice(-2).join("."));
+  for (const c of candidates) {
+    const [row] = await db
+      .select()
+      .from(siteCredentialsTable)
+      .where(eq(siteCredentialsTable.domain, c))
+      .limit(1);
+    if (!row) continue;
+    try {
+      return {
+        domain: row.domain,
+        username: decrypt(row.encryptedUsername),
+        password: decrypt(row.encryptedPassword),
+      };
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+const getCredentials: ToolDef = {
+  name: "get_credentials",
+  description:
+    "Check whether the user has saved login credentials for the current page's " +
+    "domain. Returns {found:true, username} or {found:false}. The password is " +
+    "never returned — use fill_credentials to actually log in.",
+  schema: z.object({}),
+  async execute(ctx) {
+    const host = new URL(ctx.page.url()).hostname;
+    const cred = await fetchCredential(host);
+    if (!cred) return { ok: true, found: false };
+    return { ok: true, found: true, domain: cred.domain, username: cred.username };
+  },
+};
+
+const fillCredentials: ToolDef = {
+  name: "fill_credentials",
+  description:
+    "Fill the login form for the current page's domain using the user's saved " +
+    "credentials. Provide CSS selectors for username and password fields. The " +
+    "password is filled server-side — its value never reaches the model. Set " +
+    "submit=true to press Enter on the password field after filling.",
+  schema: z.object({
+    username_selector: z.string(),
+    password_selector: z.string(),
+    submit: z.boolean().optional(),
+  }),
+  async execute(ctx, { username_selector, password_selector, submit }) {
+    const host = new URL(ctx.page.url()).hostname;
+    const cred = await fetchCredential(host);
+    if (!cred) {
+      return { ok: false, error: `No saved credentials for ${host}` };
+    }
+    await ctx.page.locator(username_selector).first().fill(cred.username, { timeout: 8_000 });
+    const pw = ctx.page.locator(password_selector).first();
+    await pw.fill(cred.password, { timeout: 8_000 });
+    if (submit) await pw.press("Enter");
+    await snap(ctx);
+    return { ok: true, domain: cred.domain };
+  },
+};
+
 export const ALL_TOOLS: ToolDef[] = [
   navigate,
   click,
@@ -231,6 +340,9 @@ export const ALL_TOOLS: ToolDef[] = [
   readPage,
   wait,
   scroll,
+  confirm,
+  getCredentials,
+  fillCredentials,
 ];
 
 /** Render the registry into the OpenAI tool-calling format. */
@@ -238,7 +350,6 @@ export function toOpenAITools(): Array<{
   type: "function";
   function: { name: string; description: string; parameters: Record<string, unknown> };
 }> {
-  // We hand-write a minimal JSON Schema rather than pulling in zod-to-json-schema.
   const toJsonSchema = (def: ToolDef) => {
     const shape = (def.schema as unknown as { _def: { typeName: string; shape?: () => Record<string, z.ZodTypeAny> } })._def;
     const params: Record<string, unknown> = { type: "object", properties: {}, required: [] };

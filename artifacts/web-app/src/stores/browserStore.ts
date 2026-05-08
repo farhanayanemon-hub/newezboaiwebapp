@@ -13,6 +13,12 @@ export interface BrowserActionEntry {
   detail?: string;
 }
 
+export interface PendingConfirm {
+  id: string;
+  question: string;
+  detail?: string;
+}
+
 interface BrowserState {
   isOpen: boolean;
   sessionId: string | null;
@@ -22,6 +28,8 @@ interface BrowserState {
   actions: BrowserActionEntry[];
   finalText: string | null;
   error: string | null;
+  /** A confirm() tool call awaiting user approval. */
+  pendingConfirm: PendingConfirm | null;
 
   open: () => void;
   close: () => void;
@@ -31,6 +39,7 @@ interface BrowserState {
   pushAction: (a: Omit<BrowserActionEntry, "id" | "ts">) => void;
   setFinalText: (t: string | null) => void;
   setError: (e: string | null) => void;
+  setPendingConfirm: (c: PendingConfirm | null) => void;
   reset: () => void;
 }
 
@@ -44,6 +53,7 @@ export const useBrowserStore = create<BrowserState>((set) => ({
   actions: [],
   finalText: null,
   error: null,
+  pendingConfirm: null,
 
   open: () => set({ isOpen: true }),
   close: () => set({ isOpen: false }),
@@ -59,6 +69,7 @@ export const useBrowserStore = create<BrowserState>((set) => ({
     })),
   setFinalText: (finalText) => set({ finalText }),
   setError: (error) => set({ error }),
+  setPendingConfirm: (pendingConfirm) => set({ pendingConfirm }),
   reset: () =>
     set({
       sessionId: null,
@@ -67,5 +78,6 @@ export const useBrowserStore = create<BrowserState>((set) => ({
       actions: [],
       finalText: null,
       error: null,
+      pendingConfirm: null,
     }),
 }));
