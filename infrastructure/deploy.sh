@@ -26,9 +26,11 @@ log "2/7 pnpm install"
 pnpm install --frozen-lockfile --prod=false
 
 log "3/7 Playwright Chromium"
-# Install/update Chromium binaries for the api-server's browser automation.
-# System-level libs (glib/nss/nspr/atk/cups/dbus/libgbm/etc) are already
-# installed by vps-setup.sh, so we don't need --with-deps here.
+# Install Chromium to a fixed, app-owned cache so runtime (PM2 daemon, may
+# run as root) and install (this script, runs as ezbo) read the SAME path.
+# Mirrored in ecosystem.config.cjs PLAYWRIGHT_BROWSERS_PATH.
+export PLAYWRIGHT_BROWSERS_PATH="/var/www/ezboai/.playwright"
+mkdir -p "$PLAYWRIGHT_BROWSERS_PATH"
 pnpm --filter @workspace/api-server exec playwright install chromium || \
   warn "playwright install chromium failed — Web Task will return 500 until fixed"
 
