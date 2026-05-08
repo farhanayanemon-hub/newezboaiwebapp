@@ -21,7 +21,27 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
+/**
+ * Production env sanity. We don't crash on missing OpenAI/etc — those are
+ * configured at runtime via /admin — but APP_ENCRYPTION_KEY and
+ * SESSION_SECRET MUST exist before serving, and DATABASE_URL is required
+ * by drizzle anyway. Crashing early gives the deploy logs a clear error
+ * instead of a 500 on first request.
+ */
+function assertProductionEnv(): void {
+  if (process.env["NODE_ENV"] !== "production") return;
+  const required = ["DATABASE_URL", "APP_ENCRYPTION_KEY", "SESSION_SECRET"];
+  const missing = required.filter((k) => !process.env[k]);
+  if (missing.length > 0) {
+    logger.error({ missing }, "missing required production env vars");
+    throw new Error(
+      `Missing required env vars in production: ${missing.join(", ")}`,
+    );
+  }
+}
+
 async function start(): Promise<void> {
+  assertProductionEnv();
   await ensureMessagesFts();
   await ensureBrowserAccessRules();
   startReminderScheduler();

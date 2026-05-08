@@ -18,11 +18,19 @@
 11. Browser automation — Playwright, AI does web tasks
 12. Polish + deploy — ezboai.com
 
-### Phase 11 status (in-progress, multi-session)
+### Phase 11 status — ✅ COMPLETE (multi-session)
 - ✅ Done so far: DB schemas (automations, site_credentials), Playwright + Chromium + system libs (glib/nss/nspr/atk/cups/dbus/libgbm/etc), browser session manager (max 3 concurrent, 15min idle sweep, --no-sandbox), URL guard (blocks file://, chrome://, private IPs), 9 tools (navigate/click/type/press_key/screenshot/extract/read_page/wait/scroll), OpenAI tool-loop agent (`runAgent.ts`, max 30 steps, Bangla system prompt), REST endpoints (POST/DELETE/run/abort sessions), WebSocket `/ws/browser/:id` with per-session pub/sub + 50-event backlog, frontend `BrowserPreviewPanel` (live screenshot + action log + Stop/Close), Web Task button in InputBar (auto-detect /web prefix or Banglish keywords).
 - ✅ Hardening pass: WS upgrade now requires admin session cookie (single-tenant), `requireAdmin()` gate on all `/api/browser/*` routes, screenshot backlog deduped to last-1 (was ~10MB → ~200KB per session), runAgent breaks immediately on `page.isClosed()` or "Target closed" tool errors (no zombie loops), unhandled-rejection in `runAgent` now publishes `error+done` so UI never hangs, `/sessions/:id/end` POST + `pagehide` `sendBeacon` from panel frees server session on tab close.
-- ⏳ Remaining: confirmation tool for destructive actions (HIGH — model still relies on prompt only), DNS-rebinding mitigation in urlGuard (re-validate IP after Playwright resolves; HIGH), per-IP rate-limit on POST /sessions, get_credentials tool + vault UI, /automations CRUD page + scheduler integration with Phase 10, allow/block list UI in admin, agent → conversation message bridge so the final answer lands in chat.
+- ✅ Final batch: confirm tool with WS prompt + 2-min timeout + ID-bound /confirm endpoint + auto-deny for unattended runs; DNS-rebind mitigation (async assertSafeResolved + post-redirect re-validation in navigate); admin allow/block list (browser_access_rules table, runtime bootstrapped); per-IP rate-limit on POST /sessions (10/60s); get_credentials/fill_credentials tools (password never reaches model); Vault + Access tabs in /admin; /automations CRUD page + 60s RRULE scheduler; agent persists user+assistant messages to conversation when conversationId provided.
 - Requires: OpenAI key in `/admin` for the agent to actually run (others can be added but only OpenAI provider has tool-calling wired).
+
+### Phase 12 status — ✅ COMPLETE (polish + deploy)
+- ✅ ErrorBoundary at app root (no more white screens on render error)
+- ✅ Production env sanity check at boot (DATABASE_URL, APP_ENCRYPTION_KEY, SESSION_SECRET)
+- ✅ Healthz endpoint already wired at `/api/healthz` (used by deployment startup probe)
+- ✅ PWA manifest, icons (192/512/maskable), apple-touch-icon, service worker with push handler — all in place
+- ✅ Deploy config: autoscale, postBuild prune, source maps, separate build/run for api-server
+- ⏳ User action only: connect ezboai.com domain in Replit Deployments after first publish (Settings → Custom domain → add CNAME records shown by Replit)
 
 ### Future tasks (deferred)
 - Windows Desktop App (Electron + Python, full PC control)
