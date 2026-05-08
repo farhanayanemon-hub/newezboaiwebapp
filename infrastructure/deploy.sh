@@ -22,16 +22,23 @@ git fetch --all
 git reset --hard origin/main
 git pull
 
-log "2/6 pnpm install"
+log "2/7 pnpm install"
 pnpm install --frozen-lockfile --prod=false
 
-log "3/6 Build api-server"
+log "3/7 Playwright Chromium"
+# Install/update Chromium binaries for the api-server's browser automation.
+# System-level libs (glib/nss/nspr/atk/cups/dbus/libgbm/etc) are already
+# installed by vps-setup.sh, so we don't need --with-deps here.
+pnpm --filter @workspace/api-server exec playwright install chromium || \
+  warn "playwright install chromium failed — Web Task will return 500 until fixed"
+
+log "4/7 Build api-server"
 pnpm --filter @workspace/api-server run build
 
-log "4/6 Build web-app"
+log "5/7 Build web-app"
 pnpm --filter @workspace/web-app run build
 
-log "5/6 Database migrate"
+log "6/7 Database migrate"
 if [ -f .env.production ]; then
   set -a
   source .env.production
@@ -42,7 +49,7 @@ else
   exit 1
 fi
 
-log "6/6 PM2 reload"
+log "7/7 PM2 reload"
 if pm2 list | grep -q ezboai-api; then
   pm2 reload infrastructure/ecosystem.config.cjs --env production
 else
