@@ -5,6 +5,10 @@
 #
 set -euo pipefail
 
+# Tell pnpm we're in CI so it auto-confirms node_modules purge when the
+# lockfile changed (it would otherwise prompt and abort with no TTY).
+export CI=true
+
 APP_DIR="/var/www/ezboai"
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
