@@ -11,7 +11,7 @@ import {
   type MessageAttachmentMeta,
 } from "@workspace/db";
 import { router as aiRouter } from "../ai/router";
-import { buildSystemPrompt, extractMemoriesFromReply } from "../ai/prompts";
+import { buildSystemPrompt, extractMemoriesFromReply, parseEzboModelId } from "../ai/prompts";
 import { upsertMemoryFromChat } from "./memories";
 import { loadAttachments, type ResolvedAttachment } from "./files";
 import { readObject } from "../services/objectStorage";
@@ -92,16 +92,25 @@ router.post("/stream", async (req, res) => {
     return;
   }
 
-  const { messages, modelOverride, attachmentIds = [] } = parsed.data;
+  const { messages, modelOverride: rawModelOverride, attachmentIds = [] } = parsed.data;
+
+  // The frontend now sends synthetic Ezbo tier IDs (`ezbo:standard|mini|pro`)
+  // rather than raw `provider:model` strings. Translate the tier into a
+  // taskType + system-prompt addon, and never forward the synthetic id to the
+  // router (it has no idea what `ezbo:*` means).
+  const ezboTier = parseEzboModelId(rawModelOverride);
+  const modelOverride = ezboTier ? undefined : rawModelOverride;
 
   const attachments = attachmentIds.length
     ? await loadAttachments(attachmentIds)
     : [];
   const hasImage = attachments.some((a) => a.kind === "image");
   // If the caller didn't pin a task type and they attached an image, route
-  // the request to a vision-capable provider.
+  // the request to a vision-capable provider. Vision always wins over the
+  // tier's preferred chat task type so image questions hit a vision model.
   const taskType: TaskType =
-    parsed.data.taskType ?? (hasImage ? "vision" : "chat-smart");
+    parsed.data.taskType ??
+    (hasImage ? "vision" : ezboTier ? ezboTier.taskType : "chat-smart");
 
   // Resolve conversation: use provided, or auto-create.
   let conversationId = parsed.data.conversationId;
@@ -211,7 +220,11 @@ router.post("/stream", async (req, res) => {
   }
   void savedUserMessageId;
 
-  const systemPrompt = await buildSystemPrompt();
+  const baseSystemPrompt = await buildSystemPrompt();
+  const systemPrompt =
+    ezboTier && ezboTier.promptAddon
+      ? baseSystemPrompt + ezboTier.promptAddon
+      : baseSystemPrompt;
   const fullMessages: ChatMessage[] = [
     { role: "system", content: systemPrompt },
     ...userMessages.map((m, i): ChatMessage => {

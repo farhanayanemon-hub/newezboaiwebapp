@@ -1,4 +1,4 @@
-import { Sparkles, CloudSun, FileText, Mail, Lightbulb } from "lucide-react";
+import { CloudSun, FileText, Mail, Lightbulb } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 
 const EXAMPLES = [
@@ -32,10 +32,6 @@ export function EmptyState({ onPromptSelect }: EmptyStateProps) {
   return (
     <div className="flex h-full items-center justify-center px-4 py-10 sm:py-14">
       <div className="w-full max-w-2xl text-center">
-        <div className="mb-5 inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1 text-xs font-medium text-muted-foreground shadow-sm">
-          <Sparkles className="h-3 w-3 text-accent" />
-          <span>Multi-Provider AI Router</span>
-        </div>
         <h1 className="bg-gradient-to-br from-foreground via-foreground to-primary bg-clip-text text-3xl font-bold tracking-tight text-transparent sm:text-4xl">
           EzboAI
         </h1>

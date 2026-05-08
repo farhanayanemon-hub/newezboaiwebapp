@@ -17,6 +17,44 @@ const MEMORY_INSTRUCTIONS =
 
 const MEMORY_LIMIT = 50;
 
+export type EzboTier = "standard" | "mini" | "pro";
+
+export interface EzboTierConfig {
+  id: EzboTier;
+  label: string;
+  taskType: "chat-fast" | "chat-smart";
+  promptAddon: string;
+}
+
+export const EZBO_TIERS: Record<EzboTier, EzboTierConfig> = {
+  standard: {
+    id: "standard",
+    label: "Ezbo 1.0",
+    taskType: "chat-smart",
+    promptAddon: "",
+  },
+  mini: {
+    id: "mini",
+    label: "Ezbo 1.0 Mini",
+    taskType: "chat-fast",
+    promptAddon:
+      "\n\nResponse style: be concise. Prefer short, direct answers — usually 1-3 sentences. Skip preamble. Only expand when the user explicitly asks for detail.",
+  },
+  pro: {
+    id: "pro",
+    label: "Ezbo 1.0 Pro (Beta)",
+    taskType: "chat-smart",
+    promptAddon:
+      "\n\nResponse style: take extra care. Reason step-by-step internally before answering. Provide thorough, well-structured responses with examples and clear sections (use Markdown headings or bullet lists when helpful). Prefer accuracy over speed.",
+  },
+};
+
+export function parseEzboModelId(id: string | undefined): EzboTierConfig | null {
+  if (!id || !id.startsWith("ezbo:")) return null;
+  const tier = id.slice(5) as EzboTier;
+  return EZBO_TIERS[tier] ?? null;
+}
+
 export async function buildSystemPrompt(): Promise<string> {
   let memories: { key: string; value: string }[] = [];
   try {

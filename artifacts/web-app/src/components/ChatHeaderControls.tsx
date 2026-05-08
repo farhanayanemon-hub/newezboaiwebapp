@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useRef, useState, useEffect, type KeyboardEvent } from "react";
 import { Volume2, VolumeX, ChevronDown, Check, Sparkles, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,8 +19,27 @@ import {
   useRenameConversation,
 } from "@/lib/conversations";
 import { cn } from "@/lib/utils";
-import { apiClient } from "@/lib/api";
 import { toast } from "sonner";
+
+const EZBO_MODELS = [
+  {
+    id: "ezbo:standard",
+    label: "Ezbo 1.0",
+    description: "Balanced everyday assistant",
+  },
+  {
+    id: "ezbo:mini",
+    label: "Ezbo 1.0 Mini",
+    description: "Fast, concise replies",
+  },
+  {
+    id: "ezbo:pro",
+    label: "Ezbo 1.0 Pro (Beta)",
+    description: "Deeper reasoning, longer answers",
+  },
+] as const;
+
+const DEFAULT_EZBO_ID = "ezbo:standard";
 
 export function ChatTitleSlot() {
   const activeConversationId = useChatStore((s) => s.activeConversationId);
@@ -91,23 +110,6 @@ export function ChatTitleSlot() {
   );
 }
 
-interface AvailableModel {
-  id: string;
-  provider: string;
-  model: string;
-  label: string;
-}
-
-interface ProvidersResponse {
-  providers: Array<{
-    id: number;
-    provider: string;
-    label: string;
-    enabled: boolean;
-    enabledModels: string[];
-  }>;
-}
-
 export function ChatHeaderRight() {
   const selectedModelId = useChatStore((s) => s.selectedModelId);
   const setSelectedModel = useChatStore((s) => s.setSelectedModel);
@@ -121,40 +123,21 @@ export function ChatHeaderRight() {
     setAutoSpeak(next);
     if (!next) stopActiveSpeech();
   };
-  const [models, setModels] = useState<AvailableModel[]>([]);
-  const [loaded, setLoaded] = useState(false);
-
+  // Migrate any legacy `provider:model` selection to the default Ezbo tier so
+  // users always see a known Ezbo label in the picker.
   useEffect(() => {
-    let aborted = false;
-    apiClient
-      .get<ProvidersResponse>("/admin/providers")
-      .then((res) => {
-        if (aborted) return;
-        const list: AvailableModel[] = [];
-        for (const p of res.providers) {
-          if (!p.enabled) continue;
-          for (const m of p.enabledModels) {
-            list.push({
-              id: `${p.provider}:${m}`,
-              provider: p.provider,
-              model: m,
-              label: m,
-            });
-          }
-        }
-        setModels(list);
-        setLoaded(true);
-      })
-      .catch(() => {
-        setLoaded(true);
-      });
-    return () => {
-      aborted = true;
-    };
-  }, []);
+    if (
+      selectedModelId &&
+      !EZBO_MODELS.some((m) => m.id === selectedModelId)
+    ) {
+      setSelectedModel(DEFAULT_EZBO_ID);
+    }
+  }, [selectedModelId, setSelectedModel]);
 
-  const selected = models.find((m) => m.id === selectedModelId);
-  const buttonLabel = selected ? selected.label : "Auto (router)";
+  const activeId = selectedModelId ?? DEFAULT_EZBO_ID;
+  const selected =
+    EZBO_MODELS.find((m) => m.id === activeId) ?? EZBO_MODELS[0];
+  const buttonLabel = selected.label;
 
   return (
     <>
@@ -171,50 +154,25 @@ export function ChatHeaderRight() {
             <ChevronDown className="h-3 w-3 text-muted-foreground" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="min-w-[16rem] max-h-[60vh] overflow-y-auto">
+        <DropdownMenuContent align="end" className="min-w-[18rem] max-h-[60vh] overflow-y-auto">
           <DropdownMenuLabel className="text-xs">Model</DropdownMenuLabel>
           <DropdownMenuSeparator />
-          <DropdownMenuItem
-            onClick={() => setSelectedModel(null)}
-            data-testid="model-auto"
-          >
-            <div className="flex flex-1 items-center justify-between">
-              <div>
-                <div className="text-sm font-medium">Auto (router)</div>
-                <div className="text-[10px] text-muted-foreground">
-                  Use routing rules with fallback
-                </div>
-              </div>
-              {!selected && <Check className="h-3.5 w-3.5 text-primary" />}
-            </div>
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          {!loaded && (
-            <DropdownMenuItem disabled>
-              <span className="text-xs text-muted-foreground">Loading…</span>
-            </DropdownMenuItem>
-          )}
-          {loaded && models.length === 0 && (
-            <DropdownMenuItem disabled>
-              <span className="text-xs text-muted-foreground">
-                No enabled models yet.
-              </span>
-            </DropdownMenuItem>
-          )}
-          {models.map((m) => (
+          {EZBO_MODELS.map((m) => (
             <DropdownMenuItem
               key={m.id}
               onClick={() => setSelectedModel(m.id)}
-              data-testid={`model-${m.id}`}
+              data-testid={`model-${m.id.replace(":", "-")}`}
             >
               <div className="flex flex-1 items-center justify-between gap-2">
                 <div>
                   <div className="text-sm font-medium">{m.label}</div>
-                  <div className="text-[10px] text-muted-foreground capitalize">
-                    {m.provider}
+                  <div className="text-[10px] text-muted-foreground">
+                    {m.description}
                   </div>
                 </div>
-                {m.id === selectedModelId && <Check className="h-3.5 w-3.5 text-primary" />}
+                {m.id === activeId && (
+                  <Check className="h-3.5 w-3.5 text-primary" />
+                )}
               </div>
             </DropdownMenuItem>
           ))}
