@@ -10,13 +10,15 @@ import {
 } from "../browser/manager";
 import { runAgent } from "../browser/runAgent";
 import { publish } from "../browser/wsHub";
-import { requireAdmin } from "../middleware/adminAuth";
 
 const router: IRouter = Router();
 
-// Single-tenant model: only the admin can drive the browser. All endpoints
-// (and the WS upgrade handler) gate on the admin session cookie.
-router.use(requireAdmin());
+// Single-tenant deployment: the entire app is owned and used by one person,
+// so we don't gate the browser endpoints behind the admin login. Defense-in-
+// depth is still provided by: per-IP rate limit on session creation (below),
+// MAX_SESSIONS=3 cap in the manager, the URL allow/block rules in
+// browser_access_rules, and the URL guard that rejects file:// / chrome:// /
+// private IPs at navigate time.
 
 // ---------- Per-IP rate limit on session creation ----------
 //
