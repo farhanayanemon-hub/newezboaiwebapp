@@ -10,3 +10,5 @@ export * from "./quickActions";
 export * from "./ttsCache";
 export * from "./reminders";
 export * from "./pushSubscriptions";
+export * from "./automations";
+export * from "./siteCredentials";

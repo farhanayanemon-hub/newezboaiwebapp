@@ -10,6 +10,7 @@ import voiceRouter from "./voice";
 import visionRouter from "./vision";
 import remindersRouter from "./reminders";
 import pushRouter from "./push";
+import browserRouter from "./browser";
 
 const router: IRouter = Router();
 
@@ -24,5 +25,6 @@ router.use("/voice", voiceRouter);
 router.use("/vision", visionRouter);
 router.use("/reminders", remindersRouter);
 router.use("/push", pushRouter);
+router.use("/browser", browserRouter);
 
 export default router;

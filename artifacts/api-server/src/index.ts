@@ -1,7 +1,10 @@
+import { createServer } from "node:http";
 import app from "./app";
 import { logger } from "./lib/logger";
 import { ensureMessagesFts } from "./db/bootstrap";
 import { startReminderScheduler } from "./services/scheduler";
+import { attachBrowserWs } from "./browser/wsServer";
+import { closeAllSessions } from "./browser/manager";
 
 const rawPort = process.env["PORT"];
 
@@ -20,13 +23,28 @@ if (Number.isNaN(port) || port <= 0) {
 async function start(): Promise<void> {
   await ensureMessagesFts();
   startReminderScheduler();
-  app.listen(port, (err) => {
-    if (err) {
-      logger.error({ err }, "Error listening on port");
-      process.exit(1);
-    }
+
+  // We use a raw http.Server (not app.listen) so we can attach the
+  // WebSocket upgrade handler for the browser-agent live preview.
+  const server = createServer(app);
+  attachBrowserWs(server);
+
+  server.listen(port, () => {
     logger.info({ port }, "Server listening");
   });
+  server.on("error", (err) => {
+    logger.error({ err }, "Server error");
+    process.exit(1);
+  });
+
+  const shutdown = async (signal: string) => {
+    logger.info({ signal }, "shutting down");
+    await closeAllSessions();
+    server.close(() => process.exit(0));
+    setTimeout(() => process.exit(0), 5_000).unref();
+  };
+  process.once("SIGTERM", () => void shutdown("SIGTERM"));
+  process.once("SIGINT", () => void shutdown("SIGINT"));
 }
 
 start().catch((err) => {

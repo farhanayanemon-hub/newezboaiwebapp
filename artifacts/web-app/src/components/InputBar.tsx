@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type DragEvent, type KeyboardEvent } from "react";
 import TextareaAutosize from "react-textarea-autosize";
-import { Camera, Monitor, Paperclip, Send, StopCircle, Mic } from "lucide-react";
+import { Camera, Monitor, Paperclip, Send, StopCircle, Mic, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
@@ -10,6 +10,7 @@ import { CameraOverlay } from "@/components/CameraOverlay";
 import { ScreenShareOverlay } from "@/components/ScreenShareOverlay";
 import { useCameraStore } from "@/stores/cameraStore";
 import { useScreenShareStore } from "@/stores/screenShareStore";
+import { useBrowserStore } from "@/stores/browserStore";
 
 interface InputBarProps {
   value: string;
@@ -29,7 +30,18 @@ const ARIA_LABELS = {
   camera: "Camera",
   screen: "Screen share",
   file: "Attach file",
+  web: "Web task (AI browser)",
 };
+
+const API_BASE = `${import.meta.env.BASE_URL}api`.replace(/\/+$/g, "/api");
+
+/** Detects "web task" intent in the message — explicit /web prefix or
+ *  Banglish keywords like "khujhe dao", "browser e", "online theke". */
+function isWebTask(text: string): boolean {
+  const t = text.trim().toLowerCase();
+  if (t.startsWith("/web ")) return true;
+  return /(browser e|browse koro|online theke|web e|khujhe dao|search koro online|open koro)/.test(t);
+}
 
 export function InputBar({
   value,
@@ -49,6 +61,42 @@ export function InputBar({
   const dragDepth = useRef(0);
   const openCamera = useCameraStore((s) => s.open);
   const openScreenShare = useScreenShareStore((s) => s.open);
+  const browser = useBrowserStore();
+  const [launchingWeb, setLaunchingWeb] = useState(false);
+
+  const launchWebTask = async (promptText: string) => {
+    if (launchingWeb) return;
+    setLaunchingWeb(true);
+    try {
+      browser.reset();
+      browser.open();
+      const sessionRes = await fetch(`${API_BASE}/browser/sessions`, { method: "POST" });
+      if (!sessionRes.ok) {
+        const body = await sessionRes.json().catch(() => ({}));
+        throw new Error(body.error ?? `Server returned ${sessionRes.status}`);
+      }
+      const { sessionId } = (await sessionRes.json()) as { sessionId: string };
+      browser.setSession(sessionId);
+      // Strip the "/web " prefix if present so the agent gets the actual task.
+      const cleanPrompt = promptText.replace(/^\/web\s+/i, "").trim();
+      const runRes = await fetch(`${API_BASE}/browser/sessions/${sessionId}/run`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: cleanPrompt }),
+      });
+      if (!runRes.ok) {
+        const body = await runRes.json().catch(() => ({}));
+        throw new Error(body.error ?? `Run failed: ${runRes.status}`);
+      }
+      onChange("");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      browser.setError(msg);
+      toast.error(`Web task shuru korte parlo na: ${msg}`);
+    } finally {
+      setLaunchingWeb(false);
+    }
+  };
 
   useEffect(() => {
     if (autoFocus) textareaRef.current?.focus();
@@ -59,10 +107,18 @@ export function InputBar({
     !disabled && !isStreaming && (trimmed.length > 0 || !!hasAttachments);
   const showCounter = value.length > 500;
 
+  const handleSendOrWebTask = () => {
+    if (isWebTask(value)) {
+      void launchWebTask(value);
+      return;
+    }
+    onSend();
+  };
+
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey && !composing) {
       e.preventDefault();
-      if (canSend) onSend();
+      if (canSend) handleSendOrWebTask();
     }
   };
 
@@ -167,6 +223,29 @@ export function InputBar({
               </TooltipTrigger>
               <TooltipContent side="top">Attach file (max 25 MB, 10 per message)</TooltipContent>
             </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 rounded-lg text-muted-foreground hover-elevate active-elevate-2"
+                  aria-label={ARIA_LABELS.web}
+                  onClick={() => {
+                    const text = value.trim();
+                    if (!text) {
+                      toast.info("Web task er jonno kichu likhun (e.g. 'Daraz e iPhone 15 dam khujhe dao').");
+                      return;
+                    }
+                    void launchWebTask(text);
+                  }}
+                  disabled={launchingWeb || disabled}
+                  data-testid="button-action-web"
+                >
+                  <Globe className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top">Web task — AI dia browser cholao</TooltipContent>
+            </Tooltip>
             <input
               ref={fileInputRef}
               type="file"
@@ -229,7 +308,7 @@ export function InputBar({
                   <Button
                     size="icon"
                     disabled={!canSend}
-                    onClick={onSend}
+                    onClick={handleSendOrWebTask}
                     aria-label="Send"
                     className="h-9 w-9 rounded-xl shadow-sm shadow-primary/20 hover-elevate active-elevate-2"
                     data-testid="button-send"

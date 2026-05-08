@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/lib/theme-provider";
+import { BrowserPreviewPanel } from "@/components/BrowserPreviewPanel";
 import ChatPage from "@/pages/Chat";
 import AdminPage from "@/pages/Admin";
 import SettingsPage from "@/pages/Settings";
@@ -43,6 +44,7 @@ function App() {
           <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
             <AppRoutes />
           </WouterRouter>
+          <BrowserPreviewPanel />
           <Toaster />
         </TooltipProvider>
       </QueryClientProvider>
