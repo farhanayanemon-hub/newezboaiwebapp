@@ -58,10 +58,11 @@ else
 fi
 
 log "7/7 PM2 reload"
+chmod +x infrastructure/run-api.sh
 if pm2 list | grep -q ezboai-api; then
-  pm2 reload infrastructure/ecosystem.config.cjs --env production
+  pm2 reload infrastructure/ecosystem.config.cjs
 else
-  pm2 start infrastructure/ecosystem.config.cjs --env production
+  pm2 start infrastructure/ecosystem.config.cjs
   pm2 save
 fi
 
