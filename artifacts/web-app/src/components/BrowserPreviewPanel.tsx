@@ -184,7 +184,7 @@ export function BrowserPreviewPanel() {
           <h2 className="text-sm font-semibold">EzboAI Web Agent</h2>
           {busy && (
             <span className="ml-2 inline-flex items-center gap-1 text-xs text-muted-foreground">
-              <Loader2 className="h-3 w-3 animate-spin" /> kaaj korche…
+              <Loader2 className="h-3 w-3 animate-spin" /> working…
             </span>
           )}
           <div className="ml-auto flex items-center gap-1">
@@ -211,7 +211,7 @@ export function BrowserPreviewPanel() {
                 />
               ) : (
                 <div className="text-sm text-muted-foreground">
-                  {busy ? "Page load hocche…" : "Browser screenshot ekhane dekhabe."}
+                  {busy ? "Loading page…" : "The browser screenshot will appear here."}
                 </div>
               )}
             </div>
@@ -222,7 +222,7 @@ export function BrowserPreviewPanel() {
               <ScrollArea className="flex-1">
                 <div ref={logRef} className="max-h-[40vh] space-y-1 px-3 py-2 text-xs lg:max-h-none">
                   {actions.length === 0 ? (
-                    <p className="text-muted-foreground">Kichu shuru hoy nai.</p>
+                    <p className="text-muted-foreground">Nothing started yet.</p>
                   ) : (
                     actions.map((a) => <ActionRow key={a.id} entry={a} />)
                   )}

@@ -23,7 +23,7 @@ interface Capabilities {
   tts: { cloud: boolean; provider?: string; model?: string; voices: string[] };
 }
 
-const SAMPLE_BN = "আমি ইজবো এআই, আপনার বাংলা সহকারী।";
+const SAMPLE_BN = "I am EzboAI, your assistant.";
 
 export function VoiceSettings() {
   const prefs = useVoiceStore();

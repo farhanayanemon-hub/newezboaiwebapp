@@ -244,7 +244,7 @@ const confirm: ToolDef = {
     "asks the user to approve. Returns {approved:true|false}. If denied, " +
     "give up and finish with a final answer explaining what was held back.",
   schema: z.object({
-    question: z.string().min(3).describe("Short Bangla question for the user."),
+    question: z.string().min(3).describe("Short English question for the user."),
     detail: z.string().optional().describe("Extra context the user should see."),
   }),
   async execute(ctx, { question, detail }) {

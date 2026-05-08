@@ -123,7 +123,7 @@ export function ScreenShareOverlay() {
       // listen for both `ended` and `inactive` to handle every browser.
       const track = stream.getVideoTracks()[0];
       const onEnded = () => {
-        toast.info("Screen share bondho hoyeche.");
+        toast.info("Screen share stopped.");
         stopStream();
       };
       track.addEventListener("ended", onEnded);
@@ -137,7 +137,7 @@ export function ScreenShareOverlay() {
         return;
       }
       setPermissionError(
-        "Screen share start kora gelo na. Browser support na thakte pare ba permission deni.",
+        "Couldn't start screen share. Your browser may not support it, or permission was denied.",
       );
     }
   }, [stopStream, setActive, resetFrames, close]);
@@ -223,7 +223,7 @@ export function ScreenShareOverlay() {
       }
       const text = (data.text || "").trim();
       if (data.suppressed) {
-        setStatusMsg("AI dekhche — kichu bola dorkar nai");
+        setStatusMsg("AI is watching — nothing to add");
         return {};
       }
       if (data.duplicate) {
@@ -413,7 +413,7 @@ export function ScreenShareOverlay() {
               onClick={() => void startStream()}
               data-testid="button-screen-retry"
             >
-              Abar try korun
+              Try again
             </Button>
           </div>
         ) : (
@@ -469,7 +469,7 @@ export function ScreenShareOverlay() {
                     void handleAsk();
                   }
                 }}
-                placeholder="Ei screen sombondhe ki janite chao?"
+                placeholder="What do you want to know about this screen?"
                 rows={2}
                 disabled={!isActive || askBusy}
                 className="min-h-[44px] flex-1 resize-none rounded-md border border-input bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-ring/40"

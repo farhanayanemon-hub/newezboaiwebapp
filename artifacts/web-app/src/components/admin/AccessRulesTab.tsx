@@ -37,7 +37,7 @@ export function AccessRulesTab() {
   const createMut = useMutation({
     mutationFn: () => apiClient.post("/admin/access-rules", { host, mode, note }),
     onSuccess: () => {
-      toast.success("Rule add kora hoyeche.");
+      toast.success("Rule added.");
       setHost(""); setNote("");
       qc.invalidateQueries({ queryKey: ["admin", "access-rules"] });
     },
@@ -56,11 +56,11 @@ export function AccessRulesTab() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
-            <Plus className="h-4 w-4" /> Notun rule
+            <Plus className="h-4 w-4" /> New rule
           </CardTitle>
           <p className="text-xs text-muted-foreground">
-            Block: ei host blocked thakbe. Allow: jodi ekta o allow rule thake,
-            tahole agent khali allow listed host e jete parbe.
+            Block: this host will be blocked. Allow: if any allow rule exists,
+            the agent can only visit hosts on the allow list.
           </p>
         </CardHeader>
         <CardContent className="grid grid-cols-1 gap-3 sm:grid-cols-[2fr_1fr_2fr_auto]">
@@ -114,7 +114,7 @@ export function AccessRulesTab() {
               <Loader2 className="h-4 w-4 animate-spin" /> Loading…
             </div>
           ) : list.data?.rules.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Kono rule nei. Default allow-everything (private host blocked).</p>
+            <p className="text-sm text-muted-foreground">No rules yet. Default: allow everything (private hosts blocked).</p>
           ) : (
             <div className="space-y-2">
               {list.data?.rules.map((r) => (

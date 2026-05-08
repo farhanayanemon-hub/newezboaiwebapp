@@ -89,7 +89,7 @@ export default function AutomationsPage() {
         schedule: cleanedSchedule,
       }),
     onSuccess: () => {
-      toast.success("Automation save hoyeche.");
+      toast.success("Automation saved.");
       setName(""); setDescription(""); setPrompt(""); setSchedule(""); setShowForm(false);
       qc.invalidateQueries({ queryKey: ["automations"] });
     },
@@ -109,7 +109,7 @@ export default function AutomationsPage() {
   const runMut = useMutation({
     mutationFn: (id: number) => apiClient.post(`/admin/automations/${id}/run`),
     onSuccess: () => {
-      toast.success("Run shuru hoyeche — koyek minit por refresh koro.");
+      toast.success("Run started — refresh in a few moments.");
       setTimeout(() => qc.invalidateQueries({ queryKey: ["automations"] }), 3_000);
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Run failed"),
@@ -154,7 +154,7 @@ export default function AutomationsPage() {
         {showForm && (
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Notun automation</CardTitle>
+              <CardTitle className="text-base">New automation</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <div>
@@ -171,7 +171,7 @@ export default function AutomationsPage() {
                 <Label htmlFor="auto-prompt">Web task prompt</Label>
                 <Textarea id="auto-prompt" rows={4} value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
-                  placeholder="Daraz e jao, iPhone 15 search koro, top 3 dam likhe dao."
+                  placeholder="Go to Daraz, search for iPhone 15, list the top 3 prices."
                   data-testid="input-automation-prompt" />
               </div>
               <div>
@@ -187,7 +187,7 @@ export default function AutomationsPage() {
                   </SelectContent>
                 </Select>
                 <p className="mt-1 text-[11px] text-muted-foreground">
-                  Schedule chara save korle khali "Run now" diye chalate parba.
+                  Without a schedule, you can only trigger it manually with "Run".
                 </p>
               </div>
               <div className="flex justify-end gap-2">
@@ -219,7 +219,7 @@ export default function AutomationsPage() {
           <Card>
             <CardContent className="py-12 text-center text-sm text-muted-foreground">
               <Workflow className="mx-auto mb-2 h-8 w-8 opacity-40" />
-              Kono automation nei. "New" theke add koro.
+              No automations yet. Add one with "New".
             </CardContent>
           </Card>
         ) : (

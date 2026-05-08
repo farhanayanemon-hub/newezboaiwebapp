@@ -138,14 +138,14 @@ export function CameraOverlay({ onSnap }: CameraOverlayProps) {
       if (myGen !== streamGenRef.current) return;
       const e = err as DOMException;
       const name = e?.name || "";
-      let msg = "Camera khulte parina.";
+      let msg = "Couldn't open the camera.";
       if (name === "NotAllowedError" || name === "SecurityError") {
         msg =
-          "Camera permission deya hoyni. Browser settings e giye permission allow korun, tarpor abar try korun.";
+          "Camera permission was denied. Allow camera access in your browser settings, then try again.";
       } else if (name === "NotFoundError" || name === "OverconstrainedError") {
-        msg = "Camera khuje pelam na. Onno camera select korun ba device check korun.";
+        msg = "No camera found. Pick another camera or check your device.";
       } else if (name === "NotReadableError") {
-        msg = "Camera onno app use korche. Sheta bondho kore abar try korun.";
+        msg = "Another app is using the camera. Close it and try again.";
       }
       setPermissionError(msg);
       setActive(false);
@@ -195,7 +195,7 @@ export function CameraOverlay({ onSnap }: CameraOverlayProps) {
       });
       setTorchOn(next);
     } catch {
-      toast.error("Flash on kora gelo na.");
+      toast.error("Couldn't turn the flash on.");
     }
   }, [torchOn]);
 
@@ -207,12 +207,12 @@ export function CameraOverlay({ onSnap }: CameraOverlayProps) {
     try {
       const blob = await captureFrame(v);
       if (!blob) {
-        toast.error("Frame capture korte parina.");
+        toast.error("Couldn't capture frame.");
         return;
       }
       const file = blobToFile(blob, `snap-${Date.now()}.jpg`);
       onSnap(file);
-      toast.success("Chobi attach hoyeche — ekhon proshno likhe send korun.");
+      toast.success("Image attached — now type your question and send.");
       close();
     } finally {
       setBusy(false);
@@ -407,7 +407,7 @@ export function CameraOverlay({ onSnap }: CameraOverlayProps) {
                 onClick={() => void startStream()}
                 data-testid="button-camera-retry"
               >
-                Abar try korun
+                Try again
               </Button>
             </div>
           ) : (
@@ -543,8 +543,8 @@ export function CameraOverlay({ onSnap }: CameraOverlayProps) {
 
           <p className="text-center text-[10px] text-white/50">
             {mode === "snap"
-              ? "Capture korle chobi attach hobe — tarpor proshno likhe send korun."
-              : "Pratyek 4 second e ekta frame AI ke pathano hobe."}
+              ? "Capture attaches the image — then type your question and send."
+              : "A frame is sent to the AI every 4 seconds."}
           </p>
         </div>
       </div>

@@ -34,7 +34,7 @@ export function CredentialsTab() {
     mutationFn: () =>
       apiClient.post("/admin/credentials", { domain, username, password, notes }),
     onSuccess: () => {
-      toast.success("Credential save kora hoyeche.");
+      toast.success("Credential saved.");
       setDomain(""); setUsername(""); setPassword(""); setNotes("");
       qc.invalidateQueries({ queryKey: ["admin", "credentials"] });
     },
@@ -51,7 +51,7 @@ export function CredentialsTab() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
-            <Plus className="h-4 w-4" /> Notun credential add koro
+            <Plus className="h-4 w-4" /> Add new credential
           </CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -100,7 +100,7 @@ export function CredentialsTab() {
               <Loader2 className="h-4 w-4 animate-spin" /> Loading…
             </div>
           ) : list.data?.credentials.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Kono credential nei.</p>
+            <p className="text-sm text-muted-foreground">No credentials yet.</p>
           ) : (
             <div className="space-y-2">
               {list.data?.credentials.map((c) => (

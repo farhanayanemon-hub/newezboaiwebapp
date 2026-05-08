@@ -51,9 +51,8 @@ export function NotificationSettings() {
     return (
       <div className="space-y-2 text-sm">
         <p className="text-muted-foreground">
-          Apnar browser e Web Push support nai (Safari/iOS er purono version
-          ba in-app browser hote pare). Mobile e Chrome/Edge/Firefox try
-          korun.
+          Your browser doesn't support Web Push (older Safari/iOS or an
+          in-app browser). Try Chrome, Edge, or Firefox on mobile.
         </p>
       </div>
     );
@@ -63,9 +62,9 @@ export function NotificationSettings() {
     return (
       <div className="space-y-2 text-sm">
         <p className="text-muted-foreground">
-          Notification permission block hoye ache. Browser address bar er
-          lock icon e click kore notifications "Allow" korun, tarpor page
-          refresh dile abar try korte parben.
+          Notifications are blocked. Click the lock icon in your browser's
+          address bar, allow notifications, then refresh the page and try
+          again.
         </p>
         <Button variant="outline" size="sm" onClick={() => void refresh()}>
           Recheck
@@ -77,9 +76,9 @@ export function NotificationSettings() {
   return (
     <div className="space-y-3 text-sm">
       <p className="text-muted-foreground">
-        EzboAI reminder set korle, time hole apnar device e browser
-        notification ashbe — even if EzboAI tab band thake (PWA install thakle
-        background eo kaaj kore).
+        When you set a reminder, your device gets a browser notification at
+        the scheduled time — even if the EzboAI tab is closed (works in the
+        background once installed as a PWA).
       </p>
       <div className="flex items-center gap-2">
         {subscribed ? (
@@ -90,7 +89,7 @@ export function NotificationSettings() {
               setBusy(true);
               try {
                 await disablePush();
-                toast.success("Notification off kora hoyeche.");
+                toast.success("Notifications turned off.");
                 await refresh();
               } catch (err) {
                 toast.error(
@@ -111,7 +110,7 @@ export function NotificationSettings() {
               setBusy(true);
               try {
                 await enablePush();
-                toast.success("Notification on kora hoyeche!");
+                toast.success("Notifications turned on!");
                 await refresh();
               } catch (err) {
                 toast.error(

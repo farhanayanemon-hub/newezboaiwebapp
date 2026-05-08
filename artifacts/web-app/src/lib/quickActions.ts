@@ -88,7 +88,7 @@ export const BUILT_IN_ACTIONS: BuiltInQuickAction[] = [
     icon: FileText,
     taskType: "chat-smart",
     promptTemplate:
-      "নিচের text এর ৩-৫ লাইনের সংক্ষিপ্ত সারমর্ম Bangla তে দাও:\n\n{input}",
+      "Summarize the text below in 3-5 short lines in English:\n\n{input}",
     inputForm: "text",
     builtIn: true,
   },
@@ -99,7 +99,7 @@ export const BUILT_IN_ACTIONS: BuiltInQuickAction[] = [
     icon: Languages,
     taskType: "chat-fast",
     promptTemplate:
-      "নিচের text কে {targetLang} ভাষায় translate করো। শুধু translation দাও, ব্যাখ্যা দরকার নেই।\n\n{input}",
+      "Translate the text below into {targetLang}. Return only the translation — no explanation.\n\n{input}",
     inputForm: "languagePicker",
     builtIn: true,
   },
@@ -110,7 +110,7 @@ export const BUILT_IN_ACTIONS: BuiltInQuickAction[] = [
     icon: Lightbulb,
     taskType: "chat-smart",
     promptTemplate:
-      "নিচের বিষয়টা একদম সহজ ভাষায় (যেন একটা বাচ্চা বুঝে) Bangla তে বুঝিয়ে দাও:\n\n{input}",
+      "Explain the topic below in very simple English, as if to a child:\n\n{input}",
     inputForm: "text",
     builtIn: true,
   },
@@ -120,7 +120,7 @@ export const BUILT_IN_ACTIONS: BuiltInQuickAction[] = [
     iconName: "Edit3",
     icon: Edit3,
     taskType: "chat-smart",
-    promptTemplate: "নিচের text কে {tone} tone এ আবার লেখো:\n\n{input}",
+    promptTemplate: "Rewrite the text below in a {tone} tone:\n\n{input}",
     inputForm: "tonePicker",
     builtIn: true,
   },
@@ -131,7 +131,7 @@ export const BUILT_IN_ACTIONS: BuiltInQuickAction[] = [
     icon: Code2,
     taskType: "code",
     promptTemplate:
-      "Analyze this code. Find bugs, suggest improvements, and explain in Bangla. Use code blocks for any code:\n\n```\n{input}\n```",
+      "Analyze this code. Find bugs, suggest improvements, and explain in English. Use code blocks for any code:\n\n```\n{input}\n```",
     inputForm: "text",
     builtIn: true,
   },
@@ -142,7 +142,7 @@ export const BUILT_IN_ACTIONS: BuiltInQuickAction[] = [
     icon: Calculator,
     taskType: "chat-smart",
     promptTemplate:
-      "এই অঙ্কটা step by step Bangla তে solve করো। প্রয়োজনে LaTeX বা markdown ব্যবহার করো:\n\n{input}",
+      "Solve this math problem step by step in English. Use LaTeX or markdown when needed:\n\n{input}",
     inputForm: "text",
     builtIn: true,
   },

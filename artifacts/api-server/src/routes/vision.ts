@@ -34,23 +34,23 @@ const upload = multer({
 });
 
 const LIVE_SYSTEM_PROMPT =
-  "You are watching a live camera feed. In 1–2 short Bangla sentences, describe what you see. " +
+  "You are watching a live camera feed. In 1–2 short English sentences, describe what you see. " +
   "If the user has asked a question, answer it concisely in the context of what's visible. " +
-  "Do not greet, do not repeat yourself. Reply only in Bangla unless the user used English.";
+  "Do not greet, do not repeat yourself. Always reply in English.";
 
 const SNAP_SYSTEM_PROMPT =
   "You are looking at a single photo the user just took. Answer their question about it concisely. " +
-  "If the user did not ask anything specific, briefly describe the photo. Reply in Bangla unless the user used English.";
+  "If the user did not ask anything specific, briefly describe the photo. Always reply in English.";
 
 const SCREEN_ASK_SYSTEM_PROMPT =
   "You are looking at a screenshot of the user's screen. Answer their question about what's on screen, " +
   "concisely and helpfully. If they reference 'this', 'this error', 'this code', etc., they mean what's visible. " +
-  "Reply in Bangla unless the user used English.";
+  "Always reply in English.";
 
 const SCREEN_PROACTIVE_SYSTEM_PROMPT =
   "You are silently watching the user's screen. ONLY speak up if you see something the user clearly needs help with: " +
   "code errors, typos, broken Excel/Word formulas, misspelled names, obvious mistakes. " +
-  "If you do speak up, give one concise Bangla suggestion (1–2 sentences). " +
+  "If you do speak up, give one concise English suggestion (1–2 sentences). " +
   "If nothing on screen warrants a comment right now, reply with EXACTLY: [no action] " +
   "Do not greet, do not narrate, do not describe normal activity. Stay quiet by default.";
 
@@ -186,9 +186,9 @@ router.post(
       const dataUrl = `data:${file.mimetype};base64,${buf.toString("base64")}`;
 
       const fallbackQuestionByMode: Record<typeof mode, string> = {
-        snap: "ei chobi te ki dekha jacche?",
-        live: "ki dekhcho?",
-        "screen-ask": "ei screen e ki ache?",
+        snap: "What can you see in this photo?",
+        live: "What do you see?",
+        "screen-ask": "What's on this screen?",
         "screen-proactive": "(silent watch — only speak up if user needs help)",
       };
       const userText = question || fallbackQuestionByMode[mode];

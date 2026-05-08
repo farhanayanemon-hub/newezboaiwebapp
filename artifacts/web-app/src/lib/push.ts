@@ -51,12 +51,12 @@ async function fetchVapidKey(): Promise<string> {
 
 export async function enablePush(): Promise<void> {
   if (!pushSupported()) {
-    throw new Error("Browser e push notification support nai.");
+    throw new Error("This browser doesn't support push notifications.");
   }
   const reg = await navigator.serviceWorker.ready;
   const perm = await Notification.requestPermission();
   if (perm !== "granted") {
-    throw new Error("Notification permission deni.");
+    throw new Error("Notification permission was denied.");
   }
   let sub = await reg.pushManager.getSubscription();
   if (!sub) {

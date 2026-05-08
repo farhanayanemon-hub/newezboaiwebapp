@@ -37,11 +37,11 @@ const ARIA_LABELS = {
 const API_BASE = `${import.meta.env.BASE_URL}api`.replace(/\/+$/g, "/api");
 
 /** Detects "web task" intent in the message — explicit /web prefix or
- *  Banglish keywords like "khujhe dao", "browser e", "online theke". */
+ *  English keywords like "browse", "search online", "open url". */
 function isWebTask(text: string): boolean {
   const t = text.trim().toLowerCase();
   if (t.startsWith("/web ")) return true;
-  return /(browser e|browse koro|online theke|web e|khujhe dao|search koro online|open koro)/.test(t);
+  return /\b(browse the web|search online|search the web|open the url|open url|go to https?:\/\/|browse to)\b/.test(t);
 }
 
 export function InputBar({
@@ -97,7 +97,7 @@ export function InputBar({
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       browser.setError(msg);
-      toast.error(`Web task shuru korte parlo na: ${msg}`);
+      toast.error(`Couldn't start web task: ${msg}`);
     } finally {
       setLaunchingWeb(false);
     }
@@ -238,7 +238,7 @@ export function InputBar({
                   onClick={() => {
                     const text = value.trim();
                     if (!text) {
-                      toast.info("Web task er jonno kichu likhun (e.g. 'Daraz e iPhone 15 dam khujhe dao').");
+                      toast.info("Type a web task first (e.g. 'Find iPhone 15 prices on Daraz').");
                       return;
                     }
                     void launchWebTask(text);
@@ -249,7 +249,7 @@ export function InputBar({
                   <Globe className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side="top">Web task — AI dia browser cholao</TooltipContent>
+              <TooltipContent side="top">Web task — let AI control a browser</TooltipContent>
             </Tooltip>
             <input
               ref={fileInputRef}

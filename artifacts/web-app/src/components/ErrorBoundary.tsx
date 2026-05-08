@@ -44,11 +44,11 @@ export class ErrorBoundary extends Component<Props, State> {
         <div className="w-full max-w-md rounded-lg border border-border bg-card p-6 shadow-sm">
           <div className="mb-3 flex items-center gap-2 text-destructive">
             <AlertTriangle className="h-5 w-5" />
-            <h1 className="text-base font-semibold">Kichu ekta gondogol hoyeche</h1>
+            <h1 className="text-base font-semibold">Something went wrong</h1>
           </div>
           <p className="mb-4 text-sm text-muted-foreground">
-            App load korte gie ekta unexpected error elo. Reload korle thik
-            hoye jabe — apnar chat saved ache.
+            An unexpected error occurred while loading the app. Reloading
+            should fix it — your chats are safely saved.
           </p>
           {this.state.error?.message && (
             <pre className="mb-4 max-h-32 overflow-auto rounded bg-muted px-2 py-1 text-[11px] text-muted-foreground">

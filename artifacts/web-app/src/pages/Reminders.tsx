@@ -75,7 +75,7 @@ export default function RemindersPage() {
         recurring: recurring || null,
       }),
     onSuccess: () => {
-      toast.success("Reminder set kora hoyeche.");
+      toast.success("Reminder set.");
       setMessage("");
       setWhen(toLocalInputValue());
       setRecurring("");
@@ -183,7 +183,7 @@ export default function RemindersPage() {
           variant="ghost"
           className="h-7 w-7 p-0 text-destructive"
           onClick={() => {
-            if (confirm("Delete kora hobe?")) deleteMut.mutate(r.id);
+            if (confirm("Delete this reminder?")) deleteMut.mutate(r.id);
           }}
           aria-label="Delete"
           data-testid={`delete-${r.id}`}
@@ -207,7 +207,7 @@ export default function RemindersPage() {
                 Reminders
               </h1>
               <p className="text-sm text-muted-foreground">
-                Time hole browser notification dibo
+                I'll send a browser notification when it's time
               </p>
             </div>
           </div>
@@ -232,7 +232,7 @@ export default function RemindersPage() {
                   id="r-msg"
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
-                  placeholder="Ki mone koraite chao?"
+                  placeholder="What should I remind you about?"
                   data-testid="input-reminder-message"
                 />
               </div>
@@ -295,7 +295,7 @@ export default function RemindersPage() {
             <div className="text-sm text-muted-foreground">Loading…</div>
           ) : (upcoming.data?.length ?? 0) === 0 ? (
             <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-              Kono upcoming reminder nai.
+              No upcoming reminders.
             </div>
           ) : (
             <div className="space-y-2">
@@ -312,7 +312,7 @@ export default function RemindersPage() {
             <div className="text-sm text-muted-foreground">Loading…</div>
           ) : (past.data?.length ?? 0) === 0 ? (
             <div className="rounded-lg border border-dashed border-border p-4 text-center text-xs text-muted-foreground">
-              Kichu nai.
+              Nothing here.
             </div>
           ) : (
             <div className="space-y-2">

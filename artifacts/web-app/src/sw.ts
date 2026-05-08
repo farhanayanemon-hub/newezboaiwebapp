@@ -33,7 +33,7 @@ self.addEventListener("push", (event) => {
   }
 
   const title = data.title || "EzboAI";
-  const body = data.body || "Apnar reminder";
+  const body = data.body || "Your reminder";
   const options: NotificationOptions = {
     body,
     tag: data.tag,
