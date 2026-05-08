@@ -9,6 +9,7 @@ import accessRules from "./accessRules";
 import ezboTiers from "./ezboTiers";
 import users from "./users";
 import smtp from "./smtp";
+import overview from "./overview";
 
 const router: IRouter = Router();
 
@@ -22,5 +23,6 @@ router.use("/access-rules", accessRules);
 router.use("/ezbo-tiers", ezboTiers);
 router.use("/users", users);
 router.use("/smtp", smtp);
+router.use("/overview", overview);
 
 export default router;

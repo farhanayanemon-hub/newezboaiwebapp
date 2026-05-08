@@ -1,8 +1,20 @@
 import { useEffect, useState } from "react";
-import { ShieldCheck, KeyRound, Server, BarChart3, ListOrdered, Loader2, Lock, Shield, Sparkles, Users, Mail } from "lucide-react";
-import { AppShell } from "@/components/AppShell";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  KeyRound,
+  Server,
+  BarChart3,
+  ListOrdered,
+  Loader2,
+  Lock,
+  Shield,
+  Sparkles,
+  Users,
+  Mail,
+  LayoutDashboard,
+} from "lucide-react";
 import { AdminLogin } from "@/components/admin/AdminLogin";
+import { AdminShell, type AdminNavItem } from "@/components/admin/AdminShell";
+import { DashboardTab } from "@/components/admin/DashboardTab";
 import { ProvidersTab } from "@/components/admin/ProvidersTab";
 import { ModelsTab } from "@/components/admin/ModelsTab";
 import { RoutingTab } from "@/components/admin/RoutingTab";
@@ -12,13 +24,58 @@ import { AccessRulesTab } from "@/components/admin/AccessRulesTab";
 import { EzboTiersTab } from "@/components/admin/EzboTiersTab";
 import { UsersTab } from "@/components/admin/UsersTab";
 import { SmtpTab } from "@/components/admin/SmtpTab";
-import { Button } from "@/components/ui/button";
 import { apiClient } from "@/lib/api";
+
+const NAV_ITEMS: AdminNavItem[] = [
+  { id: "dashboard", label: "Dashboard", icon: <LayoutDashboard className="h-4 w-4" /> },
+  { id: "users", label: "Users", icon: <Users className="h-4 w-4" /> },
+  { id: "ezbo", label: "Ezbo Models", icon: <Sparkles className="h-4 w-4" /> },
+  { id: "providers", label: "Providers", icon: <KeyRound className="h-4 w-4" /> },
+  { id: "models", label: "Models", icon: <Server className="h-4 w-4" /> },
+  { id: "routing", label: "Routing", icon: <ListOrdered className="h-4 w-4" /> },
+  { id: "usage", label: "Usage", icon: <BarChart3 className="h-4 w-4" /> },
+  { id: "credentials", label: "Vault", icon: <Lock className="h-4 w-4" /> },
+  { id: "access", label: "Access", icon: <Shield className="h-4 w-4" /> },
+  { id: "smtp", label: "SMTP", icon: <Mail className="h-4 w-4" /> },
+];
+
+const STORAGE_KEY = "ezboai-admin-active-section";
+
+function renderSection(id: string) {
+  switch (id) {
+    case "dashboard":
+      return <DashboardTab />;
+    case "users":
+      return <UsersTab />;
+    case "ezbo":
+      return <EzboTiersTab />;
+    case "providers":
+      return <ProvidersTab />;
+    case "models":
+      return <ModelsTab />;
+    case "routing":
+      return <RoutingTab />;
+    case "usage":
+      return <UsageTab />;
+    case "credentials":
+      return <CredentialsTab />;
+    case "access":
+      return <AccessRulesTab />;
+    case "smtp":
+      return <SmtpTab />;
+    default:
+      return <DashboardTab />;
+  }
+}
 
 export default function AdminPage() {
   const [authState, setAuthState] = useState<"checking" | "logged-out" | "logged-in">(
     "checking",
   );
+  const [active, setActive] = useState<string>(() => {
+    if (typeof window === "undefined") return "dashboard";
+    return window.localStorage.getItem(STORAGE_KEY) ?? "dashboard";
+  });
 
   useEffect(() => {
     apiClient
@@ -27,6 +84,12 @@ export default function AdminPage() {
       .catch(() => setAuthState("logged-out"));
   }, []);
 
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(STORAGE_KEY, active);
+    }
+  }, [active]);
+
   const handleLogout = async () => {
     await apiClient.post("/admin/logout").catch(() => undefined);
     setAuthState("logged-out");
@@ -34,110 +97,30 @@ export default function AdminPage() {
 
   if (authState === "checking") {
     return (
-      <AppShell title="Admin">
-        <div className="flex h-full items-center justify-center">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-        </div>
-      </AppShell>
+      <div className="flex h-screen w-full items-center justify-center bg-background">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
     );
   }
 
   if (authState === "logged-out") {
     return (
-      <AppShell title="Admin">
-        <AdminLogin onSuccess={() => setAuthState("logged-in")} />
-      </AppShell>
+      <div className="flex h-screen w-full items-center justify-center bg-background p-4">
+        <div className="w-full max-w-md">
+          <AdminLogin onSuccess={() => setAuthState("logged-in")} />
+        </div>
+      </div>
     );
   }
 
   return (
-    <AppShell
-      headerCenter={
-        <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-          <ShieldCheck className="h-4 w-4 text-primary" />
-          Admin Panel
-        </div>
-      }
-      headerRight={
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleLogout}
-          data-testid="button-admin-logout"
-        >
-          Sign out
-        </Button>
-      }
-      scrollContent
+    <AdminShell
+      items={NAV_ITEMS}
+      active={active}
+      onChange={setActive}
+      onLogout={handleLogout}
     >
-      <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
-        <div className="mb-6">
-          <h1 className="text-2xl font-semibold tracking-tight">Admin Panel</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Manage Ezbo model behaviour, provider keys, routing, and usage.
-          </p>
-        </div>
-
-        <Tabs defaultValue="ezbo" className="w-full">
-          <TabsList className="grid w-full grid-cols-3 sm:w-auto sm:grid-cols-9">
-            <TabsTrigger value="ezbo" className="gap-1.5" data-testid="tab-ezbo">
-              <Sparkles className="h-3.5 w-3.5" /> Ezbo Models
-            </TabsTrigger>
-            <TabsTrigger value="users" className="gap-1.5" data-testid="tab-users">
-              <Users className="h-3.5 w-3.5" /> Users
-            </TabsTrigger>
-            <TabsTrigger value="smtp" className="gap-1.5" data-testid="tab-smtp">
-              <Mail className="h-3.5 w-3.5" /> SMTP
-            </TabsTrigger>
-            <TabsTrigger value="providers" className="gap-1.5" data-testid="tab-providers">
-              <KeyRound className="h-3.5 w-3.5" /> Providers
-            </TabsTrigger>
-            <TabsTrigger value="models" className="gap-1.5" data-testid="tab-models">
-              <Server className="h-3.5 w-3.5" /> Models
-            </TabsTrigger>
-            <TabsTrigger value="routing" className="gap-1.5" data-testid="tab-routing">
-              <ListOrdered className="h-3.5 w-3.5" /> Routing
-            </TabsTrigger>
-            <TabsTrigger value="usage" className="gap-1.5" data-testid="tab-usage">
-              <BarChart3 className="h-3.5 w-3.5" /> Usage
-            </TabsTrigger>
-            <TabsTrigger value="credentials" className="gap-1.5" data-testid="tab-credentials">
-              <Lock className="h-3.5 w-3.5" /> Vault
-            </TabsTrigger>
-            <TabsTrigger value="access" className="gap-1.5" data-testid="tab-access">
-              <Shield className="h-3.5 w-3.5" /> Access
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="ezbo" className="mt-6">
-            <EzboTiersTab />
-          </TabsContent>
-          <TabsContent value="users" className="mt-6">
-            <UsersTab />
-          </TabsContent>
-          <TabsContent value="smtp" className="mt-6">
-            <SmtpTab />
-          </TabsContent>
-          <TabsContent value="providers" className="mt-6">
-            <ProvidersTab />
-          </TabsContent>
-          <TabsContent value="models" className="mt-6">
-            <ModelsTab />
-          </TabsContent>
-          <TabsContent value="routing" className="mt-6">
-            <RoutingTab />
-          </TabsContent>
-          <TabsContent value="usage" className="mt-6">
-            <UsageTab />
-          </TabsContent>
-          <TabsContent value="credentials" className="mt-6">
-            <CredentialsTab />
-          </TabsContent>
-          <TabsContent value="access" className="mt-6">
-            <AccessRulesTab />
-          </TabsContent>
-        </Tabs>
-      </div>
-    </AppShell>
+      <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">{renderSection(active)}</div>
+    </AdminShell>
   );
 }
