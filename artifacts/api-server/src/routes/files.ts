@@ -7,12 +7,24 @@ import { z } from "zod";
 import { sql, eq, desc, inArray } from "drizzle-orm";
 import { db, attachmentsTable, attachmentKinds, type AttachmentKind } from "@workspace/db";
 import {
-  storeFromTempFile,
+  hashTempFile,
+  materializeBlob,
+  discardTempFile,
   resolveStorageKey,
   deleteObject,
   ensureRootExists,
 } from "../services/objectStorage";
 import { detectKind, extractTextByKind } from "../services/extractText";
+
+/**
+ * Take a Postgres transaction-scoped advisory lock keyed on the SHA. This
+ * serializes upload-vs-delete for the same content so we never end up with
+ * a DB row that points at a blob a concurrent delete just unlinked.
+ * `hashtextextended(text, seed)` returns int8 which fits pg_advisory_xact_lock.
+ */
+async function lockSha(tx: { execute: (q: ReturnType<typeof sql>) => Promise<unknown> }, sha: string): Promise<void> {
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${sha}, 0))`);
+}
 
 const router: IRouter = Router();
 
@@ -69,47 +81,57 @@ router.post("/upload", (req, res, next) => {
   const out: unknown[] = [];
   for (const file of files) {
     try {
-      const stored = await storeFromTempFile(file.path, file.originalname);
+      const hashed = await hashTempFile(file.path);
       const mimeType =
         file.mimetype && file.mimetype !== "application/octet-stream"
           ? file.mimetype
           : (mimeLookup(file.originalname) || null) || file.mimetype || null;
       const kind = detectKind(file.originalname, mimeType ?? undefined);
 
-      const extract = await extractTextByKind(stored.absolutePath, kind);
+      // Materialize + insert under an advisory lock on the sha so a concurrent
+      // delete can't unlink the blob between our write and our row insert.
+      const inserted = await db.transaction(async (tx) => {
+        await lockSha(tx, hashed.sha256);
+        const mat = await materializeBlob(hashed.sha256, hashed.buf);
+        const extract = await extractTextByKind(mat.absolutePath, kind);
+        const [row] = await tx
+          .insert(attachmentsTable)
+          .values({
+            kind,
+            storageKey: mat.storageKey,
+            url: "", // filled after we have id
+            originalName: file.originalname,
+            mimeType,
+            sizeBytes: hashed.sizeBytes,
+            sha256: hashed.sha256,
+            extractedText: extract.text,
+            extractError: extract.error,
+          })
+          .returning();
+        const url = publicUrlFor(row.id);
+        await tx.update(attachmentsTable).set({ url }).where(eq(attachmentsTable.id, row.id));
+        return { row, url, extract };
+      });
 
-      const [row] = await db
-        .insert(attachmentsTable)
-        .values({
-          kind,
-          storageKey: stored.storageKey,
-          url: "", // filled after we have id
-          originalName: file.originalname,
-          mimeType,
-          sizeBytes: stored.sizeBytes,
-          sha256: stored.sha256,
-          extractedText: extract.text,
-          extractError: extract.error,
-        })
-        .returning();
-
-      const url = publicUrlFor(row.id);
-      await db.update(attachmentsTable).set({ url }).where(eq(attachmentsTable.id, row.id));
+      await discardTempFile(file.path);
 
       out.push({
-        id: row.id,
-        kind: row.kind,
-        url,
-        mimeType: row.mimeType,
-        sizeBytes: row.sizeBytes,
-        originalName: row.originalName,
-        sha256: row.sha256,
-        extractedTextPreview: extract.text ? extract.text.slice(0, PREVIEW_CHARS) : null,
-        extractError: extract.error,
-        createdAt: row.createdAt,
+        id: inserted.row.id,
+        kind: inserted.row.kind,
+        url: inserted.url,
+        mimeType: inserted.row.mimeType,
+        sizeBytes: inserted.row.sizeBytes,
+        originalName: inserted.row.originalName,
+        sha256: inserted.row.sha256,
+        extractedTextPreview: inserted.extract.text
+          ? inserted.extract.text.slice(0, PREVIEW_CHARS)
+          : null,
+        extractError: inserted.extract.error,
+        createdAt: inserted.row.createdAt,
       });
     } catch (err) {
       req.log?.error({ err, name: file.originalname }, "file upload failed");
+      await discardTempFile(file.path);
       out.push({
         originalName: file.originalname,
         error: err instanceof Error ? err.message : String(err),
@@ -229,14 +251,18 @@ router.delete("/:id", async (req, res) => {
     res.json({ ok: true });
     return;
   }
-  await db.delete(attachmentsTable).where(eq(attachmentsTable.id, id.data));
-  // Only delete the on-disk blob when no other attachment row references it.
-  const others = await db
-    .select({ id: attachmentsTable.id })
-    .from(attachmentsTable)
-    .where(eq(attachmentsTable.sha256, row.sha256))
-    .limit(1);
-  if (others.length === 0) {
+  // Serialize against concurrent uploads with the same content.
+  const shouldUnlink = await db.transaction(async (tx) => {
+    await lockSha(tx, row.sha256);
+    await tx.delete(attachmentsTable).where(eq(attachmentsTable.id, id.data));
+    const others = await tx
+      .select({ id: attachmentsTable.id })
+      .from(attachmentsTable)
+      .where(eq(attachmentsTable.sha256, row.sha256))
+      .limit(1);
+    return others.length === 0;
+  });
+  if (shouldUnlink) {
     await deleteObject(row.storageKey);
   }
   res.json({ ok: true });
@@ -257,16 +283,29 @@ router.post("/bulk-delete", async (req, res) => {
     res.json({ ok: true, deleted: 0 });
     return;
   }
-  await db.delete(attachmentsTable).where(inArray(attachmentsTable.id, rows.map((r) => r.id)));
+  // Group by sha so each blob's lifecycle is decided under one lock.
+  const bySha = new Map<string, { ids: string[]; storageKey: string }>();
   for (const r of rows) {
-    const remaining = await db
-      .select({ id: attachmentsTable.id })
-      .from(attachmentsTable)
-      .where(eq(attachmentsTable.sha256, r.sha256))
-      .limit(1);
-    if (remaining.length === 0) {
-      await deleteObject(r.storageKey);
-    }
+    const g = bySha.get(r.sha256) ?? { ids: [], storageKey: r.storageKey };
+    g.ids.push(r.id);
+    bySha.set(r.sha256, g);
+  }
+  const blobsToUnlink: string[] = [];
+  for (const [sha, group] of bySha) {
+    const shouldUnlink = await db.transaction(async (tx) => {
+      await lockSha(tx, sha);
+      await tx.delete(attachmentsTable).where(inArray(attachmentsTable.id, group.ids));
+      const remaining = await tx
+        .select({ id: attachmentsTable.id })
+        .from(attachmentsTable)
+        .where(eq(attachmentsTable.sha256, sha))
+        .limit(1);
+      return remaining.length === 0;
+    });
+    if (shouldUnlink) blobsToUnlink.push(group.storageKey);
+  }
+  for (const key of blobsToUnlink) {
+    await deleteObject(key);
   }
   res.json({ ok: true, deleted: rows.length });
 });
