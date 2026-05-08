@@ -51,7 +51,7 @@ if [ -f .env.production ]; then
   set -a
   source .env.production
   set +a
-  pnpm --filter @workspace/db run push || warn "DB push failed — may need manual review"
+  pnpm --filter @workspace/db run push-force || warn "DB push failed — may need manual review"
 else
   err ".env.production missing!"
   exit 1
