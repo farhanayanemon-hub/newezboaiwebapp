@@ -325,7 +325,7 @@ async function maybeAutoTitle(
 
   const titlePrompt =
     "Generate a short 3 to 5 word chat title summarizing this exchange. " +
-    "Respond in the same language the user used. Reply with only the title — no quotes, no punctuation at the end.";
+    "Always respond in English. Reply with only the title — no quotes, no punctuation at the end.";
   const sample = `User: ${userText.slice(0, 400)}\nAssistant: ${assistantText.slice(0, 400)}`;
 
   let title = "";

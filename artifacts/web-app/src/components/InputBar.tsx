@@ -37,11 +37,13 @@ const ARIA_LABELS = {
 const API_BASE = `${import.meta.env.BASE_URL}api`.replace(/\/+$/g, "/api");
 
 /** Detects "web task" intent in the message — explicit /web prefix or
- *  English keywords like "browse", "search online", "open url". */
+ *  common English intents that imply driving a browser. */
 function isWebTask(text: string): boolean {
   const t = text.trim().toLowerCase();
   if (t.startsWith("/web ")) return true;
-  return /\b(browse the web|search online|search the web|open the url|open url|go to https?:\/\/|browse to)\b/.test(t);
+  // Explicit URL handoff
+  if (/\bhttps?:\/\/\S+/.test(t)) return true;
+  return /\b(browse|browse to|browse the web|search (?:for|online|the web)|find .+ (?:on|at|from) [a-z0-9.-]+\.[a-z]{2,}|look up .+ (?:on|at|from) [a-z0-9.-]+\.[a-z]{2,}|go to [a-z0-9.-]+\.[a-z]{2,}|open (?:the )?(?:url|website|site|page))\b/.test(t);
 }
 
 export function InputBar({
@@ -238,7 +240,7 @@ export function InputBar({
                   onClick={() => {
                     const text = value.trim();
                     if (!text) {
-                      toast.info("Type a web task first (e.g. 'Find iPhone 15 prices on Daraz').");
+                      toast.info("Type a web task first (e.g. 'Find iPhone 15 on daraz.com.bd' or '/web go to amazon.com').");
                       return;
                     }
                     void launchWebTask(text);

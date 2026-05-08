@@ -114,7 +114,7 @@ export function VoiceSettings() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="bn-BD">বাংলা (bn-BD)</SelectItem>
+              <SelectItem value="bn-BD">Bengali (bn-BD)</SelectItem>
               <SelectItem value="en-US">English (en-US)</SelectItem>
               <SelectItem value="auto">Auto-detect</SelectItem>
             </SelectContent>
