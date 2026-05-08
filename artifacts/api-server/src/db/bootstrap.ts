@@ -46,6 +46,40 @@ export async function ensureMessagesFts(): Promise<void> {
 }
 
 /**
+ * Idempotent creation + seeding of the ezbo_tier_prompts table. Mirrors the
+ * defaults in `ai/prompts.ts` so a fresh DB still has all 3 tiers visible in
+ * the admin UI.
+ */
+export async function ensureEzboTierPrompts(): Promise<void> {
+  try {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS ezbo_tier_prompts (
+        tier text PRIMARY KEY,
+        label text NOT NULL,
+        description text NOT NULL DEFAULT '',
+        task_type text NOT NULL,
+        prompt_addon text NOT NULL DEFAULT '',
+        updated_at timestamp with time zone DEFAULT now() NOT NULL
+      )
+    `);
+    // Seed defaults on first run only (ON CONFLICT DO NOTHING preserves edits).
+    await db.execute(sql`
+      INSERT INTO ezbo_tier_prompts (tier, label, description, task_type, prompt_addon)
+      VALUES
+        ('standard', 'Ezbo 1.0', 'Balanced everyday assistant', 'chat-smart', ''),
+        ('mini', 'Ezbo 1.0 Mini', 'Fast, concise replies', 'chat-fast',
+          E'\n\nResponse style: be concise. Prefer short, direct answers — usually 1-3 sentences. Skip preamble. Only expand when the user explicitly asks for detail.'),
+        ('pro', 'Ezbo 1.0 Pro (Beta)', 'Deeper reasoning, longer answers', 'chat-smart',
+          E'\n\nResponse style: take extra care. Reason step-by-step internally before answering. Provide thorough, well-structured responses with examples and clear sections (use Markdown headings or bullet lists when helpful). Prefer accuracy over speed.')
+      ON CONFLICT (tier) DO NOTHING
+    `);
+    logger.info("ezbo_tier_prompts table ensured");
+  } catch (err) {
+    logger.error({ err }, "failed to ensure ezbo_tier_prompts");
+  }
+}
+
+/**
  * Idempotent creation of the browser_access_rules table. Drizzle-kit push
  * also knows about it, but we ensure it at runtime so a fresh deploy where
  * the operator skips `pnpm db push` doesn't 500 on the access-rules tab.

@@ -11,7 +11,7 @@ import {
   type MessageAttachmentMeta,
 } from "@workspace/db";
 import { router as aiRouter } from "../ai/router";
-import { buildSystemPrompt, extractMemoriesFromReply, parseEzboModelId } from "../ai/prompts";
+import { buildSystemPrompt, extractMemoriesFromReply, parseEzboModelId, getEzboTier } from "../ai/prompts";
 import { upsertMemoryFromChat } from "./memories";
 import { loadAttachments, type ResolvedAttachment } from "./files";
 import { readObject } from "../services/objectStorage";
@@ -220,11 +220,10 @@ router.post("/stream", async (req, res) => {
   }
   void savedUserMessageId;
 
-  const baseSystemPrompt = await buildSystemPrompt();
-  const systemPrompt =
-    ezboTier && ezboTier.promptAddon
-      ? baseSystemPrompt + ezboTier.promptAddon
-      : baseSystemPrompt;
+  // Pull the latest (admin-editable) tier config from the DB so prompt
+  // overrides made in /admin → "Ezbo Models" take effect on the next chat.
+  const resolvedTier = ezboTier ? await getEzboTier(ezboTier.id) : null;
+  const systemPrompt = await buildSystemPrompt(resolvedTier);
   const fullMessages: ChatMessage[] = [
     { role: "system", content: systemPrompt },
     ...userMessages.map((m, i): ChatMessage => {

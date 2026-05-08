@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ShieldCheck, KeyRound, Server, BarChart3, ListOrdered, Loader2, Lock, Shield } from "lucide-react";
+import { ShieldCheck, KeyRound, Server, BarChart3, ListOrdered, Loader2, Lock, Shield, Sparkles } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AdminLogin } from "@/components/admin/AdminLogin";
@@ -9,6 +9,7 @@ import { RoutingTab } from "@/components/admin/RoutingTab";
 import { UsageTab } from "@/components/admin/UsageTab";
 import { CredentialsTab } from "@/components/admin/CredentialsTab";
 import { AccessRulesTab } from "@/components/admin/AccessRulesTab";
+import { EzboTiersTab } from "@/components/admin/EzboTiersTab";
 import { Button } from "@/components/ui/button";
 import { apiClient } from "@/lib/api";
 
@@ -69,14 +70,17 @@ export default function AdminPage() {
     >
       <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
         <div className="mb-6">
-          <h1 className="text-2xl font-semibold tracking-tight">AI Router Control</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Admin Panel</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Manage provider keys, model availability, routing fallbacks, and usage.
+            Manage Ezbo model behaviour, provider keys, routing, and usage.
           </p>
         </div>
 
-        <Tabs defaultValue="providers" className="w-full">
-          <TabsList className="grid w-full grid-cols-3 sm:w-auto sm:grid-cols-6">
+        <Tabs defaultValue="ezbo" className="w-full">
+          <TabsList className="grid w-full grid-cols-3 sm:w-auto sm:grid-cols-7">
+            <TabsTrigger value="ezbo" className="gap-1.5" data-testid="tab-ezbo">
+              <Sparkles className="h-3.5 w-3.5" /> Ezbo Models
+            </TabsTrigger>
             <TabsTrigger value="providers" className="gap-1.5" data-testid="tab-providers">
               <KeyRound className="h-3.5 w-3.5" /> Providers
             </TabsTrigger>
@@ -97,6 +101,9 @@ export default function AdminPage() {
             </TabsTrigger>
           </TabsList>
 
+          <TabsContent value="ezbo" className="mt-6">
+            <EzboTiersTab />
+          </TabsContent>
           <TabsContent value="providers" className="mt-6">
             <ProvidersTab />
           </TabsContent>
