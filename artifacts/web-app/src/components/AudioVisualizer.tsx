@@ -45,7 +45,13 @@ export function AudioVisualizer({
     ro.observe(canvas);
 
     const draw = () => {
-      analyser.getByteFrequencyData(buf);
+      try {
+        analyser.getByteFrequencyData(buf);
+      } catch {
+        // AudioContext was closed by the recorder mid-frame; bail cleanly.
+        cancelAnimationFrame(raf);
+        return;
+      }
       const w = canvas.clientWidth;
       const h = canvas.clientHeight;
       ctx.clearRect(0, 0, w, h);

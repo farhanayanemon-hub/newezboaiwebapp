@@ -29,6 +29,7 @@ import { streamChat } from "@/lib/streamChat";
 import { apiClient } from "@/lib/api";
 import { resetActiveSpeechQueue, stopActiveSpeech } from "@/lib/speech/speechQueue";
 import { useContinuousListen } from "@/lib/speech/useContinuousListen";
+import { useVoiceStore } from "@/stores/voiceStore";
 import {
   fillTemplate,
   recordQuickActionUse,
@@ -72,7 +73,7 @@ export default function ChatPage() {
   const selectedModelId = useChatStore((s) => s.selectedModelId);
   const pendingAttachments = useChatStore((s) => s.pendingAttachments);
   const clearPendingAttachments = useChatStore((s) => s.clearPendingAttachments);
-  const voiceOutputEnabled = useChatStore((s) => s.voiceOutputEnabled);
+  const autoSpeak = useVoiceStore((s) => s.autoSpeak);
 
   const [pending, setPending] = useState<PendingAction | null>(null);
 
@@ -207,7 +208,7 @@ export default function ChatPage() {
     markStreaming(optimisticConvId, true);
 
     // Fresh speech queue for this assistant turn. Cancel any prior speech.
-    const speech = voiceOutputEnabled ? resetActiveSpeechQueue() : null;
+    const speech = autoSpeak ? resetActiveSpeechQueue() : null;
 
     let resolvedConvId = activeConversationId;
 

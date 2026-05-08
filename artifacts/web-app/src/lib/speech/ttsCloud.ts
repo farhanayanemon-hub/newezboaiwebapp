@@ -60,7 +60,12 @@ export async function playCloud(req: CloudTtsRequest): Promise<CloudPlayHandle> 
       );
     }
   }
-  await audio.play().catch(() => resolveDone());
+  try {
+    await audio.play();
+  } catch (err) {
+    resolveDone();
+    throw err;
+  }
   return {
     done,
     stop: () => {

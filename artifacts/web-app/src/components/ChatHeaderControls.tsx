@@ -112,15 +112,15 @@ interface ProvidersResponse {
 export function ChatHeaderRight() {
   const selectedModelId = useChatStore((s) => s.selectedModelId);
   const setSelectedModel = useChatStore((s) => s.setSelectedModel);
-  const voiceEnabled = useChatStore((s) => s.voiceOutputEnabled);
-  const toggleVoice = useChatStore((s) => s.toggleVoiceOutput);
-  const isSpeaking = useVoiceStore((s) => s.isSpeaking);
+  // Single source of truth: voiceStore.autoSpeak. The header button is just a
+  // shortcut for the same pref shown under Settings → Voice.
+  const voiceEnabled = useVoiceStore((s) => s.autoSpeak);
   const setAutoSpeak = useVoiceStore((s) => s.setAutoSpeak);
+  const isSpeaking = useVoiceStore((s) => s.isSpeaking);
   const handleToggleVoice = () => {
-    toggleVoice();
-    // Mirror the UI toggle into the voice prefs so settings stay coherent.
-    setAutoSpeak(!voiceEnabled);
-    if (voiceEnabled) stopActiveSpeech();
+    const next = !voiceEnabled;
+    setAutoSpeak(next);
+    if (!next) stopActiveSpeech();
   };
   const [models, setModels] = useState<AvailableModel[]>([]);
   const [loaded, setLoaded] = useState(false);

@@ -40,9 +40,24 @@ export function useContinuousListen(onUtterance: (text: string) => void): void {
     let stopped = false;
     let restartTimer: ReturnType<typeof setTimeout> | null = null;
     let lastFinal = "";
+    /** True between arm() and the cycle finishing. Prevents double-restart
+     * when the browser fires both `onerror` and `onend` for the same cycle. */
+    let cycleSettled = false;
+
+    const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+    const scheduleRestart = (waitMs: number) => {
+      if (stopped) return;
+      if (restartTimer) return; // Coalesce multiple settles into one timer.
+      restartTimer = setTimeout(() => {
+        restartTimer = null;
+        arm();
+      }, waitMs);
+    };
 
     const arm = () => {
       if (stopped) return;
+      cycleSettled = false;
       const h = startBrowserStt({
         lang: lang === "auto" ? undefined : lang,
         continuous: false,
@@ -54,24 +69,28 @@ export function useContinuousListen(onUtterance: (text: string) => void): void {
           handle.current?.stop();
         },
         onEnd: () => {
+          if (cycleSettled) return;
+          cycleSettled = true;
           const text = lastFinal.trim();
           lastFinal = "";
           if (text) {
-            const wp = wakePhrase.trim().toLowerCase();
+            const wpRaw = wakePhrase.trim();
+            const wp = wpRaw.toLowerCase();
             if (!wp || text.toLowerCase().includes(wp)) {
               const cleaned = wp
-                ? text.replace(new RegExp(wp, "ig"), "").trim()
+                ? text.replace(new RegExp(escapeRe(wpRaw), "ig"), "").trim()
                 : text;
               if (cleaned) onUtteranceRef.current(cleaned);
             }
           }
-          // Re-arm shortly so we keep listening.
-          if (!stopped) restartTimer = setTimeout(arm, 250);
+          scheduleRestart(250);
         },
         onError: (code) => {
+          if (cycleSettled) return;
+          cycleSettled = true;
           // "no-speech" / "aborted" are normal; back off briefly.
           const wait = code === "not-allowed" ? 5000 : 800;
-          if (!stopped) restartTimer = setTimeout(arm, wait);
+          scheduleRestart(wait);
         },
       });
       handle.current = h;

@@ -42,6 +42,8 @@ export function MicButton({ onInterim, onFinal, onAutoSend, disabled }: MicButto
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isLongPress = useRef(false);
   const autoSendOnEnd = useRef(false);
+  /** Set true if the user releases pointer before the async start finishes. */
+  const pendingRelease = useRef<{ commit: boolean } | null>(null);
 
   const cleanup = useCallback(() => {
     setRecording(false);
@@ -70,6 +72,20 @@ export function MicButton({ onInterim, onFinal, onAutoSend, disabled }: MicButto
         lang: sttLang === "auto" ? undefined : sttLang,
         continuous: false,
         silenceMs: autoSend ? SILENCE_MS : 0,
+        onStart: () => {
+          setRecording(true);
+          // If the pointer was already released during async startup, honor it.
+          const pending = pendingRelease.current;
+          if (pending) {
+            pendingRelease.current = null;
+            autoSendOnEnd.current = pending.commit;
+            try {
+              browserHandle.current?.stop();
+            } catch {
+              /* noop */
+            }
+          }
+        },
         onTranscript: (text, isFinal) => {
           if (isFinal) {
             finalText.current += text;
@@ -97,7 +113,6 @@ export function MicButton({ onInterim, onFinal, onAutoSend, disabled }: MicButto
           }
           autoSendOnEnd.current = false;
         },
-        onStart: () => setRecording(true),
       });
       if (!handle) return false;
       browserHandle.current = handle;
@@ -119,7 +134,15 @@ export function MicButton({ onInterim, onFinal, onAutoSend, disabled }: MicButto
             toast.error(`Mic: ${msg}`);
             cleanup();
           },
-          onStart: () => setRecording(true),
+          onStart: () => {
+            setRecording(true);
+            const pending = pendingRelease.current;
+            if (pending) {
+              pendingRelease.current = null;
+              autoSendOnEnd.current = pending.commit;
+              void stopAndTranscribe();
+            }
+          },
         });
         recorderHandle.current = handle;
         setAnalyser(handle.analyser);
@@ -196,9 +219,11 @@ export function MicButton({ onInterim, onFinal, onAutoSend, disabled }: MicButto
   const onPointerDown = useCallback(() => {
     if (disabled) return;
     isLongPress.current = false;
+    pendingRelease.current = null;
     longPressTimer.current = setTimeout(() => {
       isLongPress.current = true;
-      void startListening(false); // push-to-talk: don't auto-send on silence
+      // Push-to-talk: don't auto-send on silence; commit on release instead.
+      void startListening(false);
     }, LONG_PRESS_MS);
   }, [disabled, startListening]);
 
@@ -207,23 +232,25 @@ export function MicButton({ onInterim, onFinal, onAutoSend, disabled }: MicButto
       clearTimeout(longPressTimer.current);
       longPressTimer.current = null;
     }
-    if (isRecording && isLongPress.current) {
-      // End of push-to-talk: commit (and auto-send so user gets hands-free flow).
-      autoSendOnEnd.current = true;
-      void stopListening();
+    if (isLongPress.current) {
+      // End of push-to-talk. The recorder may still be starting up
+      // asynchronously — record the intent so onStart can honor it.
       isLongPress.current = false;
+      if (isRecording) {
+        autoSendOnEnd.current = true;
+        void stopListening();
+      } else {
+        pendingRelease.current = { commit: true };
+      }
       return;
     }
-    if (isRecording && !isLongPress.current) {
+    if (isRecording) {
       // Tap-to-stop while recording from a previous tap.
       void stopListening();
       return;
     }
-    if (!isRecording && !isLongPress.current) {
-      // Plain tap: start one-shot with silence-detected auto-send.
-      void startListening(true);
-    }
-    isLongPress.current = false;
+    // Plain tap: start one-shot with silence-detected auto-send.
+    void startListening(true);
   }, [isRecording, startListening, stopListening]);
 
   const onPointerCancel = useCallback(() => {
@@ -231,6 +258,7 @@ export function MicButton({ onInterim, onFinal, onAutoSend, disabled }: MicButto
       clearTimeout(longPressTimer.current);
       longPressTimer.current = null;
     }
+    pendingRelease.current = null;
     if (isRecording) cleanup();
     isLongPress.current = false;
   }, [isRecording, cleanup]);

@@ -36,10 +36,24 @@ function cacheKeyFor(engine: string, voice: string, speed: number, text: string)
     .digest("hex");
 }
 
+/**
+ * In-process inflight dedupe for /tts. If two requests for the same cacheKey
+ * arrive concurrently after both miss the cache, the second one waits for the
+ * first to finish and reuses the same audio buffer instead of paying for a
+ * duplicate provider call.
+ */
+const ttsInflight = new Map<
+  string,
+  Promise<{ audio: Buffer; mimeType: string }>
+>();
+
 // POST /stt — multipart/form-data field "audio"
 router.post("/stt", (req, res, next) => {
   upload.single("audio")(req, res, (err) => {
     if (err) {
+      // Multer may have already written a partial temp file; clean it up.
+      const tmp = req.file?.path;
+      if (tmp) void unlink(tmp).catch(() => undefined);
       const code = (err as { code?: string }).code;
       if (code === "LIMIT_FILE_SIZE") {
         res.status(413).json({ error: "Audio exceeds 20 MB." });
@@ -158,38 +172,54 @@ router.post("/tts", async (req, res) => {
 
     const provider = getProvider(cand.provider)!;
     const start = Date.now();
-    const result = await provider.synthesizeSpeech!({
-      apiKey: cand.apiKey,
-      model: cand.model,
-      text,
-      voice,
-      speed,
-    });
+    let coalesced = false;
+    let inflight = ttsInflight.get(key);
+    if (inflight) {
+      coalesced = true;
+    } else {
+      inflight = (async () => {
+        try {
+          const r = await provider.synthesizeSpeech!({
+            apiKey: cand.apiKey,
+            model: cand.model,
+            text,
+            voice,
+            speed,
+          });
+          // Persist to disk + cache table while still inflight so later
+          // arrivals after this resolves see the row immediately.
+          await mkdir(ttsCacheDir(), { recursive: true });
+          const ext = r.mimeType.includes("mpeg") ? "mp3" : "bin";
+          const fileName = `${key}.${ext}`;
+          const storageKey = path.join("tts", fileName);
+          const abs = path.join(uploadsRoot(), storageKey);
+          await writeFile(abs, r.audio);
+          await db
+            .insert(ttsCacheTable)
+            .values({
+              cacheKey: key,
+              engine,
+              voice,
+              speed: speed.toFixed(2),
+              storageKey,
+              mimeType: r.mimeType,
+              sizeBytes: r.audio.length,
+            })
+            .onConflictDoNothing()
+            .catch(() => undefined);
+          return r;
+        } finally {
+          ttsInflight.delete(key);
+        }
+      })();
+      ttsInflight.set(key, inflight);
+    }
+
+    const result = await inflight;
     const latencyMs = Date.now() - start;
 
-    // Persist to disk + cache table.
-    await mkdir(ttsCacheDir(), { recursive: true });
-    const ext = result.mimeType.includes("mpeg") ? "mp3" : "bin";
-    const fileName = `${key}.${ext}`;
-    const storageKey = path.join("tts", fileName);
-    const abs = path.join(uploadsRoot(), storageKey);
-    await writeFile(abs, result.audio);
-    await db
-      .insert(ttsCacheTable)
-      .values({
-        cacheKey: key,
-        engine,
-        voice,
-        speed: speed.toFixed(2),
-        storageKey,
-        mimeType: result.mimeType,
-        sizeBytes: result.audio.length,
-      })
-      .onConflictDoNothing()
-      .catch(() => undefined);
-
     res.setHeader("Content-Type", result.mimeType);
-    res.setHeader("X-Tts-Cache", "miss");
+    res.setHeader("X-Tts-Cache", coalesced ? "coalesced" : "miss");
     res.setHeader("X-Provider", cand.provider);
     res.setHeader("X-Model", cand.model);
     res.setHeader("X-Latency-Ms", String(latencyMs));
