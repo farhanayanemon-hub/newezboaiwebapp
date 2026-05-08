@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/lib/theme-provider";
+import { AuthProvider } from "@/lib/auth";
 import { BrowserPreviewPanel } from "@/components/BrowserPreviewPanel";
 import ChatPage from "@/pages/Chat";
 import AdminPage from "@/pages/Admin";
@@ -11,6 +12,7 @@ import MemoriesPage from "@/pages/Memories";
 import FilesPage from "@/pages/Files";
 import RemindersPage from "@/pages/Reminders";
 import AutomationsPage from "@/pages/Automations";
+import AccountPage from "@/pages/Account";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient({
@@ -33,6 +35,7 @@ function AppRoutes() {
       <Route path="/files" component={FilesPage} />
       <Route path="/reminders" component={RemindersPage} />
       <Route path="/automations" component={AutomationsPage} />
+      <Route path="/account" component={AccountPage} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -42,13 +45,15 @@ function App() {
   return (
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
-        <TooltipProvider delayDuration={150}>
-          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-            <AppRoutes />
-          </WouterRouter>
-          <BrowserPreviewPanel />
-          <Toaster />
-        </TooltipProvider>
+        <AuthProvider>
+          <TooltipProvider delayDuration={150}>
+            <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+              <AppRoutes />
+            </WouterRouter>
+            <BrowserPreviewPanel />
+            <Toaster />
+          </TooltipProvider>
+        </AuthProvider>
       </QueryClientProvider>
     </ThemeProvider>
   );

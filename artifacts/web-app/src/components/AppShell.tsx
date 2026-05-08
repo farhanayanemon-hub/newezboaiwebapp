@@ -7,6 +7,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { Logo } from "@/components/Logo";
 import { SidebarContent } from "@/components/Sidebar";
 import { PrivacyIndicator } from "@/components/PrivacyIndicator";
+import { UserMenu } from "@/components/auth/UserMenu";
 
 interface AppShellProps {
   children: ReactNode;
@@ -97,6 +98,7 @@ export function AppShell({
               </Button>
             )}
             <ThemeToggle />
+            <UserMenu />
           </div>
         </header>
 

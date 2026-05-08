@@ -80,6 +80,44 @@ export async function ensureEzboTierPrompts(): Promise<void> {
 }
 
 /**
+ * Idempotent creation of the users + user_sessions tables. Phase 2 auth.
+ * Uses pgcrypto's gen_random_uuid() for the user id default; the extension is
+ * created on demand. Does NOT seed any users.
+ */
+export async function ensureUsers(): Promise<void> {
+  try {
+    await db.execute(sql`CREATE EXTENSION IF NOT EXISTS pgcrypto`);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS users (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        email text NOT NULL UNIQUE,
+        password_hash text NOT NULL,
+        name text NOT NULL DEFAULT '',
+        role text NOT NULL DEFAULT 'user',
+        created_at timestamp with time zone DEFAULT now() NOT NULL,
+        updated_at timestamp with time zone DEFAULT now() NOT NULL
+      )
+    `);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS user_sessions (
+        id serial PRIMARY KEY,
+        token_hash text NOT NULL UNIQUE,
+        user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        expires_at timestamp with time zone NOT NULL,
+        created_at timestamp with time zone DEFAULT now() NOT NULL
+      )
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS user_sessions_user_id_idx
+      ON user_sessions (user_id)
+    `);
+    logger.info("users + user_sessions tables ensured");
+  } catch (err) {
+    logger.error({ err }, "failed to ensure users tables");
+  }
+}
+
+/**
  * Idempotent creation of the browser_access_rules table. Drizzle-kit push
  * also knows about it, but we ensure it at runtime so a fresh deploy where
  * the operator skips `pnpm db push` doesn't 500 on the access-rules tab.

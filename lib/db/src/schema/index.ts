@@ -14,3 +14,4 @@ export * from "./automations";
 export * from "./siteCredentials";
 export * from "./browserAccessRules";
 export * from "./ezboTierPrompts";
+export * from "./users";
