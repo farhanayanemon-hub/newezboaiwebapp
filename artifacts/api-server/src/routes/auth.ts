@@ -263,22 +263,22 @@ router.post("/verify-email/confirm", authRateLimit, async (req, res) => {
     return;
   }
   const hash = tokenHash(parsed.data.token);
-  const [row] = await db
-    .select()
-    .from(emailVerificationTokensTable)
-    .where(
-      and(
-        eq(emailVerificationTokensTable.tokenHash, hash),
-        gt(emailVerificationTokensTable.expiresAt, new Date()),
-        isNull(emailVerificationTokensTable.consumedAt),
-      ),
-    )
-    .limit(1);
-  if (!row) {
-    res.status(400).json({ error: "Invalid or expired token" });
-    return;
-  }
-  await db.transaction(async (tx) => {
+  // SELECT ... FOR UPDATE inside the transaction so two concurrent
+  // confirms can't both consume the same token.
+  const ok = await db.transaction(async (tx) => {
+    const [row] = await tx
+      .select()
+      .from(emailVerificationTokensTable)
+      .where(
+        and(
+          eq(emailVerificationTokensTable.tokenHash, hash),
+          gt(emailVerificationTokensTable.expiresAt, new Date()),
+          isNull(emailVerificationTokensTable.consumedAt),
+        ),
+      )
+      .for("update")
+      .limit(1);
+    if (!row) return false;
     await tx
       .update(emailVerificationTokensTable)
       .set({ consumedAt: new Date() })
@@ -287,7 +287,12 @@ router.post("/verify-email/confirm", authRateLimit, async (req, res) => {
       .update(usersTable)
       .set({ emailVerifiedAt: new Date(), updatedAt: sql`now()` })
       .where(eq(usersTable.id, row.userId));
+    return true;
   });
+  if (!ok) {
+    res.status(400).json({ error: "Invalid or expired token" });
+    return;
+  }
   res.json({ ok: true });
 });
 
@@ -341,23 +346,23 @@ router.post("/reset-password", authRateLimit, async (req, res) => {
     return;
   }
   const hash = tokenHash(parsed.data.token);
-  const [row] = await db
-    .select()
-    .from(passwordResetTokensTable)
-    .where(
-      and(
-        eq(passwordResetTokensTable.tokenHash, hash),
-        gt(passwordResetTokensTable.expiresAt, new Date()),
-        isNull(passwordResetTokensTable.consumedAt),
-      ),
-    )
-    .limit(1);
-  if (!row) {
-    res.status(400).json({ error: "Invalid or expired reset token" });
-    return;
-  }
   const newHash = await hashPassword(parsed.data.newPassword);
-  await db.transaction(async (tx) => {
+  // Lock the token row inside the transaction so two concurrent reset
+  // requests with the same token can't both succeed.
+  const ok = await db.transaction(async (tx) => {
+    const [row] = await tx
+      .select()
+      .from(passwordResetTokensTable)
+      .where(
+        and(
+          eq(passwordResetTokensTable.tokenHash, hash),
+          gt(passwordResetTokensTable.expiresAt, new Date()),
+          isNull(passwordResetTokensTable.consumedAt),
+        ),
+      )
+      .for("update")
+      .limit(1);
+    if (!row) return false;
     await tx
       .update(passwordResetTokensTable)
       .set({ consumedAt: new Date() })
@@ -366,11 +371,15 @@ router.post("/reset-password", authRateLimit, async (req, res) => {
       .update(usersTable)
       .set({ passwordHash: newHash, updatedAt: sql`now()` })
       .where(eq(usersTable.id, row.userId));
-    // Wipe live sessions for security.
     await tx
       .delete(userSessionsTable)
       .where(eq(userSessionsTable.userId, row.userId));
+    return true;
   });
+  if (!ok) {
+    res.status(400).json({ error: "Invalid or expired reset token" });
+    return;
+  }
   res.json({ ok: true });
 });
 

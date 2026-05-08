@@ -164,6 +164,29 @@ router.get("/:id", async (req, res) => {
   });
 });
 
+/**
+ * Look up a target user and refuse to operate on admin-role accounts.
+ * The admin panel uses a shared password (no per-admin user row), so the
+ * only safe rule we can enforce here is "another admin can't be touched
+ * via this UI" — that prevents an operator from accidentally deleting
+ * the platform's own admin-flagged user accounts.
+ */
+async function loadProtectedTarget(
+  res: import("express").Response,
+  id: string,
+): Promise<typeof usersTable.$inferSelect | null> {
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, id)).limit(1);
+  if (!user) {
+    res.status(404).json({ error: "Not found" });
+    return null;
+  }
+  if (user.role === "admin") {
+    res.status(403).json({ error: "Refusing to modify an admin user from this panel." });
+    return null;
+  }
+  return user;
+}
+
 // POST /admin/users/:id/ban  { reason? }
 const banSchema = z.object({ reason: z.string().max(500).optional() });
 router.post("/:id/ban", async (req, res) => {
@@ -177,6 +200,7 @@ router.post("/:id/ban", async (req, res) => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+  if (!(await loadProtectedTarget(res, id.data))) return;
   const [updated] = await db
     .update(usersTable)
     .set({
@@ -225,11 +249,8 @@ router.post("/:id/impersonate", async (req, res) => {
     res.status(400).json({ error: "Invalid id" });
     return;
   }
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, id.data)).limit(1);
-  if (!user) {
-    res.status(404).json({ error: "Not found" });
-    return;
-  }
+  const user = await loadProtectedTarget(res, id.data);
+  if (!user) return;
   if (user.bannedAt) {
     res.status(400).json({ error: "Cannot impersonate a banned user" });
     return;
@@ -246,6 +267,7 @@ router.delete("/:id", async (req, res) => {
     res.status(400).json({ error: "Invalid id" });
     return;
   }
+  if (!(await loadProtectedTarget(res, id.data))) return;
   const [deleted] = await db
     .delete(usersTable)
     .where(eq(usersTable.id, id.data))
