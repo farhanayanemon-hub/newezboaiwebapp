@@ -7,6 +7,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Logo } from "@/components/Logo";
 import { ThreadList } from "@/components/ThreadList";
+import { ProjectsSection } from "@/components/ProjectsSection";
 import { useChatStore } from "@/stores/chatStore";
 import { cn } from "@/lib/utils";
 
@@ -18,6 +19,9 @@ export function SidebarContent({ onNavigate }: SidebarContentProps) {
   const [location] = useLocation();
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [projectFilter, setProjectFilter] = useState<string | undefined>(
+    undefined,
+  );
   const setActiveConversation = useChatStore((s) => s.setActiveConversation);
 
   useEffect(() => {
@@ -70,8 +74,18 @@ export function SidebarContent({ onNavigate }: SidebarContentProps) {
 
       <Separator className="bg-sidebar-border" />
 
+      <div className="px-3 py-3">
+        <ProjectsSection selected={projectFilter} onSelect={setProjectFilter} />
+      </div>
+
+      <Separator className="bg-sidebar-border" />
+
       <ScrollArea className="flex-1 px-3 py-3">
-        <ThreadList searchQuery={debouncedSearch} onThreadSelected={onNavigate} />
+        <ThreadList
+          searchQuery={debouncedSearch}
+          projectFilter={projectFilter}
+          onThreadSelected={onNavigate}
+        />
       </ScrollArea>
 
       <Separator className="bg-sidebar-border" />

@@ -11,6 +11,8 @@ import {
   type MessageAttachmentMeta,
 } from "@workspace/db";
 import { router as aiRouter } from "../ai/router";
+import { getUserFromRequest } from "../middleware/userAuth";
+import { isNull, and } from "drizzle-orm";
 import { buildSystemPrompt, extractMemoriesFromReply, parseEzboModelId, getEzboTier } from "../ai/prompts";
 import { upsertMemoryFromChat } from "./memories";
 import { loadAttachments, type ResolvedAttachment } from "./files";
@@ -115,14 +117,24 @@ router.post("/stream", async (req, res) => {
     parsed.data.taskType ??
     (hasImage ? "vision" : resolvedTier ? resolvedTier.taskType : "chat-smart");
 
-  // Resolve conversation: use provided, or auto-create.
+  // Resolve the caller (optional — guests can still chat). Phase 3 scopes
+  // conversations to the owning user; guests share the user_id IS NULL pool.
+  const callerUser = await getUserFromRequest(req);
+  const callerUserId = callerUser?.id ?? null;
+
+  // Resolve conversation: use provided, or auto-create. When provided,
+  // verify the caller owns it (or it's an anonymous row when the caller is
+  // a guest). This blocks accidental cross-user access via a guessed id.
   let conversationId = parsed.data.conversationId;
   let conversationCreated = false;
   if (conversationId) {
+    const ownership = callerUserId
+      ? eq(conversationsTable.userId, callerUserId)
+      : isNull(conversationsTable.userId);
     const existing = await db
       .select({ id: conversationsTable.id })
       .from(conversationsTable)
-      .where(eq(conversationsTable.id, conversationId))
+      .where(and(eq(conversationsTable.id, conversationId), ownership))
       .limit(1);
     if (!existing[0]) {
       res.status(404).json({ error: "Conversation not found" });
@@ -131,7 +143,7 @@ router.post("/stream", async (req, res) => {
   } else {
     const [row] = await db
       .insert(conversationsTable)
-      .values({ title: "New chat" })
+      .values({ title: "New chat", userId: callerUserId })
       .returning({ id: conversationsTable.id });
     conversationId = row.id;
     conversationCreated = true;

@@ -10,6 +10,7 @@ import type { Message, Thread, SearchResult } from "@/types/chat";
 interface ApiConversation {
   id: string;
   title: string;
+  projectId?: string | null;
   createdAt: string;
   updatedAt: string;
   preview?: string;
@@ -38,6 +39,7 @@ interface ApiMessage {
 const toThread = (c: ApiConversation): Thread => ({
   id: c.id,
   title: c.title,
+  projectId: c.projectId ?? null,
   createdAt: new Date(c.createdAt).getTime(),
   updatedAt: new Date(c.updatedAt).getTime(),
   preview: c.preview ?? "",
@@ -69,19 +71,31 @@ const toMessage = (m: ApiMessage): Message => ({
     : undefined,
 });
 
+/**
+ * `projectId`:
+ *   - undefined → all conversations the caller can see
+ *   - "unfiled" → conversations not in any project
+ *   - "<uuid>"  → that specific project
+ */
+export type ConversationFilter = string | undefined;
+
 export const conversationKeys = {
   all: ["conversations"] as const,
-  list: () => [...conversationKeys.all, "list"] as const,
+  list: (filter: ConversationFilter = undefined) =>
+    [...conversationKeys.all, "list", filter ?? "all"] as const,
   detail: (id: string) => [...conversationKeys.all, "detail", id] as const,
   search: (q: string) => [...conversationKeys.all, "search", q] as const,
 };
 
-export function useConversations() {
+export function useConversations(filter?: ConversationFilter) {
   return useQuery({
-    queryKey: conversationKeys.list(),
+    queryKey: conversationKeys.list(filter),
     queryFn: async () => {
+      const path = filter
+        ? `/conversations?projectId=${encodeURIComponent(filter)}`
+        : "/conversations";
       const res = await apiClient.get<{ conversations: ApiConversation[] }>(
-        "/conversations",
+        path,
       );
       return res.conversations.map(toThread);
     },
@@ -112,7 +126,7 @@ export function useCreateConversation() {
       return toThread(res.conversation);
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: conversationKeys.list() });
+      qc.invalidateQueries({ queryKey: conversationKeys.all });
     },
   });
 }
@@ -128,7 +142,7 @@ export function useRenameConversation() {
       return toThread(res.conversation);
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: conversationKeys.list() });
+      qc.invalidateQueries({ queryKey: conversationKeys.all });
     },
   });
 }
@@ -141,7 +155,7 @@ export function useDeleteConversation() {
       return id;
     },
     onSuccess: (id) => {
-      qc.invalidateQueries({ queryKey: conversationKeys.list() });
+      qc.invalidateQueries({ queryKey: conversationKeys.all });
       qc.removeQueries({ queryKey: conversationKeys.detail(id) });
     },
   });
@@ -202,12 +216,16 @@ export const conversationCache = {
     conversationId: string,
     preview: string,
   ) {
-    qc.setQueryData<Thread[]>(conversationKeys.list(), (prev) =>
-      (prev ?? []).map((t) =>
-        t.id === conversationId
-          ? { ...t, preview, updatedAt: Date.now() }
-          : t,
-      ),
+    // Update every cached list view (all, unfiled, per-project) so the user
+    // sees the new preview regardless of which sidebar tab they're on.
+    qc.setQueriesData<Thread[]>({ queryKey: conversationKeys.all }, (prev) =>
+      Array.isArray(prev)
+        ? prev.map((t) =>
+            t.id === conversationId
+              ? { ...t, preview, updatedAt: Date.now() }
+              : t,
+          )
+        : prev,
     );
   },
 };

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useLocation } from "wouter";
-import { MessageSquare, MoreVertical, Pencil, Trash2 } from "lucide-react";
+import { Folder, FolderInput, FolderMinus, MessageSquare, MoreVertical, Pencil, Trash2 } from "lucide-react";
 import {
   startOfDay,
   startOfWeek,
@@ -14,6 +14,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
+  DropdownMenuPortal,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,12 +46,16 @@ import {
   useRenameConversation,
   useSearchConversations,
 } from "@/lib/conversations";
+import { useAuth } from "@/lib/auth";
+import { useMoveConversation, useProjects } from "@/lib/projects";
 import type { Thread } from "@/types/chat";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 interface ThreadListProps {
   searchQuery: string;
+  /** undefined = all, "unfiled" = no project, "<uuid>" = that project */
+  projectFilter?: string | undefined;
   onThreadSelected?: () => void;
 }
 
@@ -80,15 +88,23 @@ function groupThreads(threads: Thread[]): GroupedThreads[] {
   return groups.filter((g) => g.threads.length > 0);
 }
 
-export function ThreadList({ searchQuery, onThreadSelected }: ThreadListProps) {
+export function ThreadList({
+  searchQuery,
+  projectFilter,
+  onThreadSelected,
+}: ThreadListProps) {
   const [, setLocation] = useLocation();
   const activeConversationId = useChatStore((s) => s.activeConversationId);
   const setActiveConversation = useChatStore((s) => s.setActiveConversation);
+  const { user } = useAuth();
+  const isLoggedIn = !!user;
 
-  const { data: threads = [], isLoading } = useConversations();
+  const { data: threads = [], isLoading } = useConversations(projectFilter);
   const { data: searchResults = [] } = useSearchConversations(searchQuery);
+  const { data: projects = [] } = useProjects(isLoggedIn);
   const renameMutation = useRenameConversation();
   const deleteMutation = useDeleteConversation();
+  const moveMutation = useMoveConversation();
 
   const [renamingThread, setRenamingThread] = useState<Thread | null>(null);
   const [renameValue, setRenameValue] = useState("");
@@ -183,7 +199,7 @@ export function ThreadList({ searchQuery, onThreadSelected }: ThreadListProps) {
                           <MoreVertical className="h-3.5 w-3.5" />
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="min-w-[8rem]">
+                      <DropdownMenuContent align="end" className="min-w-[10rem]">
                         <DropdownMenuItem
                           onClick={() => {
                             setRenamingThread(thread);
@@ -193,6 +209,72 @@ export function ThreadList({ searchQuery, onThreadSelected }: ThreadListProps) {
                           <Pencil className="mr-2 h-3.5 w-3.5" />
                           Rename
                         </DropdownMenuItem>
+                        {isLoggedIn && (
+                          <DropdownMenuSub>
+                            <DropdownMenuSubTrigger>
+                              <FolderInput className="mr-2 h-3.5 w-3.5" />
+                              Move to project
+                            </DropdownMenuSubTrigger>
+                            <DropdownMenuPortal>
+                              <DropdownMenuSubContent className="min-w-[10rem] max-h-64 overflow-auto">
+                                {projects.length === 0 && (
+                                  <DropdownMenuItem disabled>
+                                    No projects yet
+                                  </DropdownMenuItem>
+                                )}
+                                {projects.map((p) => (
+                                  <DropdownMenuItem
+                                    key={p.id}
+                                    disabled={thread.projectId === p.id}
+                                    onClick={() =>
+                                      moveMutation.mutate(
+                                        {
+                                          conversationId: thread.id,
+                                          projectId: p.id,
+                                        },
+                                        {
+                                          onSuccess: () =>
+                                            toast.success(`Moved to "${p.name}"`),
+                                          onError: () =>
+                                            toast.error("Could not move"),
+                                        },
+                                      )
+                                    }
+                                    data-testid={`move-to-${p.id}`}
+                                  >
+                                    <Folder className="mr-2 h-3.5 w-3.5" />
+                                    {p.name}
+                                  </DropdownMenuItem>
+                                ))}
+                                {thread.projectId && (
+                                  <>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem
+                                      onClick={() =>
+                                        moveMutation.mutate(
+                                          {
+                                            conversationId: thread.id,
+                                            projectId: null,
+                                          },
+                                          {
+                                            onSuccess: () =>
+                                              toast.success("Removed from project"),
+                                            onError: () =>
+                                              toast.error("Could not move"),
+                                          },
+                                        )
+                                      }
+                                      data-testid={`unfile-${thread.id}`}
+                                    >
+                                      <FolderMinus className="mr-2 h-3.5 w-3.5" />
+                                      Remove from project
+                                    </DropdownMenuItem>
+                                  </>
+                                )}
+                              </DropdownMenuSubContent>
+                            </DropdownMenuPortal>
+                          </DropdownMenuSub>
+                        )}
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
                           className="text-destructive focus:text-destructive"

@@ -1,7 +1,7 @@
 import { createServer } from "node:http";
 import app from "./app";
 import { logger } from "./lib/logger";
-import { ensureMessagesFts, ensureBrowserAccessRules, ensureEzboTierPrompts, ensureUsers } from "./db/bootstrap";
+import { ensureMessagesFts, ensureBrowserAccessRules, ensureEzboTierPrompts, ensureUsers, ensureProjects } from "./db/bootstrap";
 import { startReminderScheduler } from "./services/scheduler";
 import { startAutomationsScheduler } from "./services/automationsScheduler";
 import { attachBrowserWs } from "./browser/wsServer";
@@ -46,6 +46,7 @@ async function start(): Promise<void> {
   await ensureBrowserAccessRules();
   await ensureEzboTierPrompts();
   await ensureUsers();
+  await ensureProjects();
   startReminderScheduler();
   startAutomationsScheduler();
 

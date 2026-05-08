@@ -118,6 +118,50 @@ export async function ensureUsers(): Promise<void> {
 }
 
 /**
+ * Idempotent creation of the projects table + nullable user_id/project_id
+ * columns on the existing conversations table. Phase 3 (Projects + per-user
+ * chat scoping). Safe to run repeatedly; existing conversations keep
+ * user_id = NULL and behave as the anonymous/guest pool.
+ */
+export async function ensureProjects(): Promise<void> {
+  try {
+    await db.execute(sql`CREATE EXTENSION IF NOT EXISTS pgcrypto`);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS projects (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        name text NOT NULL,
+        created_at timestamp with time zone DEFAULT now() NOT NULL,
+        updated_at timestamp with time zone DEFAULT now() NOT NULL
+      )
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS projects_user_idx
+      ON projects (user_id, created_at)
+    `);
+    await db.execute(sql`
+      ALTER TABLE conversations
+        ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES users(id) ON DELETE CASCADE
+    `);
+    await db.execute(sql`
+      ALTER TABLE conversations
+        ADD COLUMN IF NOT EXISTS project_id uuid REFERENCES projects(id) ON DELETE SET NULL
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS conversations_user_idx
+      ON conversations (user_id, updated_at)
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS conversations_project_idx
+      ON conversations (project_id, updated_at)
+    `);
+    logger.info("projects table + conversations.user_id/project_id ensured");
+  } catch (err) {
+    logger.error({ err }, "failed to ensure projects");
+  }
+}
+
+/**
  * Idempotent creation of the browser_access_rules table. Drizzle-kit push
  * also knows about it, but we ensure it at runtime so a fresh deploy where
  * the operator skips `pnpm db push` doesn't 500 on the access-rules tab.

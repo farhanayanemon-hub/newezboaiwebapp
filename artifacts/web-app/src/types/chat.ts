@@ -32,6 +32,7 @@ export interface Message {
 export interface Thread {
   id: string;
   title: string;
+  projectId?: string | null;
   createdAt: number;
   updatedAt: number;
   preview?: string;
