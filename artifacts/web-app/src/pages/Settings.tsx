@@ -1,4 +1,5 @@
-import { Settings as SettingsIcon, Sun, Moon, Monitor, Bell, User, Zap, Mic } from "lucide-react";
+import { Settings as SettingsIcon, Sun, Moon, Monitor, Bell, User, Zap, Mic, ArrowLeft, ShieldCheck, ExternalLink } from "lucide-react";
+import { Link } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -11,6 +12,8 @@ import { NotificationSettings } from "@/components/NotificationSettings";
 export default function SettingsPage() {
   const { theme, setTheme } = useTheme();
 
+  const appVersion = (import.meta.env.VITE_APP_VERSION as string | undefined) ?? "1.0.0";
+
   const themeOptions = [
     { value: "light" as const, label: "Light", icon: Sun },
     { value: "dark" as const, label: "Dark", icon: Moon },
@@ -19,7 +22,21 @@ export default function SettingsPage() {
 
   return (
     <AppShell title="Settings">
-      <div className="mx-auto max-w-2xl px-4 py-10 sm:py-14">
+      <div className="mx-auto max-w-2xl px-4 py-6 sm:py-10">
+        <div className="mb-4">
+          <Button
+            asChild
+            variant="ghost"
+            size="sm"
+            className="-ml-2 hover-elevate active-elevate-2"
+            data-testid="button-back-to-chat"
+          >
+            <Link href="/" aria-label="Back to chat">
+              <ArrowLeft className="mr-1.5 h-4 w-4" /> Back to chat
+            </Link>
+          </Button>
+        </div>
+
         <div className="mb-8 flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
             <SettingsIcon className="h-5 w-5" />
@@ -115,21 +132,45 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
 
-          <Card className="opacity-70" data-testid="card-account-coming">
+          <Card data-testid="card-account">
             <CardHeader>
               <div className="flex items-start gap-3">
-                <User className="mt-0.5 h-5 w-5 text-muted-foreground" />
+                <User className="mt-0.5 h-5 w-5 text-primary" />
                 <div className="flex-1">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    Account
-                    <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                      Coming soon
-                    </span>
-                  </CardTitle>
-                  <CardDescription>Profile, preferences, and conversation sync</CardDescription>
+                  <CardTitle className="text-base">Account</CardTitle>
+                  <CardDescription>
+                    EzboAI runs as a single-tenant app on your own domain — no
+                    sign-in required.
+                  </CardDescription>
                 </div>
               </div>
             </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              <div className="flex items-center justify-between rounded-md border border-border/60 px-3 py-2">
+                <span className="text-muted-foreground">Domain</span>
+                <span className="font-medium" data-testid="text-account-domain">
+                  {typeof window !== "undefined" ? window.location.hostname : "ezboai.com"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between rounded-md border border-border/60 px-3 py-2">
+                <span className="text-muted-foreground">Version</span>
+                <span className="font-medium" data-testid="text-account-version">
+                  {appVersion}
+                </span>
+              </div>
+              <Button
+                asChild
+                variant="outline"
+                className="w-full justify-start hover-elevate active-elevate-2"
+                data-testid="button-open-admin"
+              >
+                <Link href="/admin" aria-label="Open admin">
+                  <ShieldCheck className="mr-2 h-4 w-4" />
+                  Admin — AI keys, vault &amp; access rules
+                  <ExternalLink className="ml-auto h-3.5 w-3.5 text-muted-foreground" />
+                </Link>
+              </Button>
+            </CardContent>
           </Card>
         </div>
       </div>
