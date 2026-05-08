@@ -1,9 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { AppShell } from "@/components/AppShell";
-import {
-  ChatTitleSlot,
-  ChatHeaderRight,
-} from "@/components/ChatHeaderControls";
+import { ChatTitleSlot, ChatHeaderRight } from "@/components/ChatHeaderControls";
 import { MessageList } from "@/components/MessageList";
 import { InputBar } from "@/components/InputBar";
 import { QuickActionChips } from "@/components/QuickActionChips";
@@ -13,44 +10,25 @@ import {
   useActiveThread,
   useActiveMessages,
 } from "@/stores/chatStore";
-
-const FAKE_AI_RESPONSE = `**Phase 3 e real AI ashbe** — ekhon eta just placeholder.
-
-Ami apnar message peyechi. Phase 3 unlock hole apni:
-- OpenAI / Anthropic / Gemini / xAI Grok / OpenRouter / Replicate — ja chaichen sob plug korte parben
-- Bangla, Banglish, English — sob bhashay reply pabe
-- Code, math, translation, summarization — sob handle korbo
-
-\`\`\`typescript
-// Sample code block formatting test
-function greet(name: string): string {
-  return \`Hello \${name}, ami EzboAI!\`;
-}
-\`\`\`
-
-Ekhon shudhu UI testing er jonno ei placeholder dekhachi.`;
-
-interface PendingReply {
-  threadId: string;
-  timerId: number;
-}
+import { streamChat } from "@/lib/streamChat";
 
 export default function ChatPage() {
   const [input, setInput] = useState("");
-  // Thread-scoped streaming: switching threads while the fake AI "thinks"
-  // must not leak the typing indicator/stop button into another conversation.
   const [streamingThreadIds, setStreamingThreadIds] = useState<Set<string>>(
     () => new Set(),
   );
-  const pendingRepliesRef = useRef<Map<string, PendingReply>>(new Map());
+  const abortControllers = useRef<Map<string, AbortController>>(new Map());
 
   const activeThread = useActiveThread();
   const messages = useActiveMessages();
   const createThread = useChatStore((s) => s.createThread);
   const addMessage = useChatStore((s) => s.addMessage);
+  const updateMessage = useChatStore((s) => s.updateMessage);
+  const appendToMessage = useChatStore((s) => s.appendToMessage);
   const threads = useChatStore((s) => s.threads);
   const setActiveThread = useChatStore((s) => s.setActiveThread);
   const activeThreadId = useChatStore((s) => s.activeThreadId);
+  const selectedModelId = useChatStore((s) => s.selectedModelId);
 
   useEffect(() => {
     if (!activeThreadId && threads.length > 0) {
@@ -59,10 +37,9 @@ export default function ChatPage() {
   }, [activeThreadId, threads, setActiveThread]);
 
   useEffect(() => {
-    const pending = pendingRepliesRef.current;
     return () => {
-      pending.forEach((p) => window.clearTimeout(p.timerId));
-      pending.clear();
+      for (const ctrl of abortControllers.current.values()) ctrl.abort();
+      abortControllers.current.clear();
     };
   }, []);
 
@@ -79,7 +56,7 @@ export default function ChatPage() {
     });
   };
 
-  const handleSend = () => {
+  const handleSend = async () => {
     const trimmed = input.trim();
     if (!trimmed) return;
 
@@ -87,29 +64,72 @@ export default function ChatPage() {
     if (!threadId) threadId = createThread();
     const targetThreadId = threadId;
 
-    if (pendingRepliesRef.current.has(targetThreadId)) return;
+    if (abortControllers.current.has(targetThreadId)) return;
 
     addMessage(targetThreadId, "user", trimmed);
     setInput("");
 
+    const assistantMessage = addMessage(targetThreadId, "assistant", "");
     markStreaming(targetThreadId, true);
-    const timerId = window.setTimeout(() => {
-      addMessage(targetThreadId, "assistant", FAKE_AI_RESPONSE);
-      pendingRepliesRef.current.delete(targetThreadId);
+
+    const ctrl = new AbortController();
+    abortControllers.current.set(targetThreadId, ctrl);
+
+    const store = useChatStore.getState();
+    const history = store.messagesByThread[targetThreadId] ?? [];
+    const conversation = history
+      .filter((m) => m.id !== assistantMessage.id)
+      .map((m) => ({ role: m.role, content: m.content }))
+      .filter((m): m is { role: "user" | "assistant"; content: string } =>
+        (m.role === "user" || m.role === "assistant") && m.content.length > 0,
+      );
+
+    try {
+      await streamChat(
+        {
+          messages: conversation,
+          modelOverride: selectedModelId ?? undefined,
+          signal: ctrl.signal,
+        },
+        {
+          onChunk: (delta) => {
+            appendToMessage(targetThreadId, assistantMessage.id, delta);
+          },
+          onDone: (info) => {
+            updateMessage(targetThreadId, assistantMessage.id, { meta: info });
+          },
+          onError: (msg) => {
+            updateMessage(targetThreadId, assistantMessage.id, {
+              meta: { error: msg },
+              content:
+                useChatStore
+                  .getState()
+                  .messagesByThread[targetThreadId]?.find(
+                    (m) => m.id === assistantMessage.id,
+                  )?.content || "",
+            });
+          },
+        },
+      );
+    } catch (err) {
+      if (!(err instanceof DOMException && err.name === "AbortError")) {
+        const msg = err instanceof Error ? err.message : String(err);
+        updateMessage(targetThreadId, assistantMessage.id, {
+          meta: { error: msg },
+        });
+      }
+    } finally {
+      abortControllers.current.delete(targetThreadId);
       markStreaming(targetThreadId, false);
-    }, 1500);
-    pendingRepliesRef.current.set(targetThreadId, {
-      threadId: targetThreadId,
-      timerId,
-    });
+    }
   };
 
   const handleStop = () => {
     if (!activeThreadId) return;
-    const pending = pendingRepliesRef.current.get(activeThreadId);
-    if (pending) {
-      window.clearTimeout(pending.timerId);
-      pendingRepliesRef.current.delete(activeThreadId);
+    const ctrl = abortControllers.current.get(activeThreadId);
+    if (ctrl) {
+      ctrl.abort();
+      abortControllers.current.delete(activeThreadId);
     }
     markStreaming(activeThreadId, false);
   };

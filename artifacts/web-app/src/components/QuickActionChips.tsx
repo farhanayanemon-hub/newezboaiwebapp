@@ -19,13 +19,13 @@ interface QuickAction {
 }
 
 const ACTIONS: QuickAction[] = [
-  { id: "summarize", label: "Summarize", icon: FileText, template: "Ei text tar ekta short summary diyen:\n\n" },
-  { id: "translate", label: "Translate", icon: Languages, template: "Ei text ta Bangla theke English e translate koren:\n\n" },
-  { id: "explain", label: "Explain", icon: Lightbulb, template: "Ei concept ta simple Bangla bhashay bujhiye den:\n\n" },
-  { id: "rewrite", label: "Rewrite", icon: Edit3, template: "Ei text tare professional tone e rewrite koren:\n\n" },
-  { id: "code", label: "Code Help", icon: Code2, template: "Ei code er bug khuje den ar fix suggest koren:\n\n```\n\n```" },
-  { id: "math", label: "Math", icon: Calculator, template: "Ei math problem ta step-by-step solve koren:\n\n" },
-  { id: "email", label: "Email", icon: Mail, template: "Ei topic er upor ekta professional email draft koren:\n\n" },
+  { id: "summarize", label: "Summarize", icon: FileText, template: "Give me a short summary of the following:\n\n" },
+  { id: "translate", label: "Translate", icon: Languages, template: "Translate the following text:\n\n" },
+  { id: "explain", label: "Explain", icon: Lightbulb, template: "Explain this concept in simple terms:\n\n" },
+  { id: "rewrite", label: "Rewrite", icon: Edit3, template: "Rewrite the following text in a professional tone:\n\n" },
+  { id: "code", label: "Code Help", icon: Code2, template: "Find bugs and suggest fixes for this code:\n\n```\n\n```" },
+  { id: "math", label: "Math", icon: Calculator, template: "Solve this math problem step by step:\n\n" },
+  { id: "email", label: "Email", icon: Mail, template: "Draft a professional email about:\n\n" },
   { id: "custom", label: "Custom", icon: Wand2, template: "" },
 ];
 

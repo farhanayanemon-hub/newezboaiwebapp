@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
-import { Volume2, VolumeX, ChevronDown, Check } from "lucide-react";
+import { Volume2, VolumeX, ChevronDown, Check, Sparkles } from "lucide-react";
+import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -13,14 +14,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useChatStore, useActiveThread } from "@/stores/chatStore";
 import { cn } from "@/lib/utils";
-
-const MODELS = [
-  { id: "gpt-4o", label: "GPT-4o", provider: "OpenAI", badge: "Default" },
-  { id: "gpt-4o-mini", label: "GPT-4o mini", provider: "OpenAI", badge: "Fast" },
-  { id: "claude-3-5-sonnet", label: "Claude 3.5 Sonnet", provider: "Anthropic" },
-  { id: "gemini-2-0-flash", label: "Gemini 2.0 Flash", provider: "Google" },
-  { id: "grok-2", label: "Grok 2", provider: "xAI" },
-];
+import { apiClient } from "@/lib/api";
 
 export function ChatTitleSlot() {
   const activeThread = useActiveThread();
@@ -73,7 +67,7 @@ export function ChatTitleSlot() {
       type="button"
       onClick={start}
       className="group max-w-md truncate rounded-md px-2 py-1 text-sm font-medium text-foreground hover-elevate active-elevate-2"
-      aria-label="Chat title rename"
+      aria-label="Rename chat"
       data-testid="button-edit-title"
     >
       <span className="truncate">{activeThread.title}</span>
@@ -81,12 +75,62 @@ export function ChatTitleSlot() {
   );
 }
 
+interface AvailableModel {
+  id: string;
+  provider: string;
+  model: string;
+  label: string;
+}
+
+interface ProvidersResponse {
+  providers: Array<{
+    id: number;
+    provider: string;
+    label: string;
+    enabled: boolean;
+    enabledModels: string[];
+  }>;
+}
+
 export function ChatHeaderRight() {
   const selectedModelId = useChatStore((s) => s.selectedModelId);
   const setSelectedModel = useChatStore((s) => s.setSelectedModel);
   const voiceEnabled = useChatStore((s) => s.voiceOutputEnabled);
   const toggleVoice = useChatStore((s) => s.toggleVoiceOutput);
-  const selectedModel = MODELS.find((m) => m.id === selectedModelId) ?? MODELS[0];
+  const [models, setModels] = useState<AvailableModel[]>([]);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    let aborted = false;
+    apiClient
+      .get<ProvidersResponse>("/admin/providers")
+      .then((res) => {
+        if (aborted) return;
+        const list: AvailableModel[] = [];
+        for (const p of res.providers) {
+          if (!p.enabled) continue;
+          for (const m of p.enabledModels) {
+            list.push({
+              id: `${p.provider}:${m}`,
+              provider: p.provider,
+              model: m,
+              label: m,
+            });
+          }
+        }
+        setModels(list);
+        setLoaded(true);
+      })
+      .catch(() => {
+        setLoaded(true);
+      });
+    return () => {
+      aborted = true;
+    };
+  }, []);
+
+  const selected = models.find((m) => m.id === selectedModelId);
+  const buttonLabel = selected ? selected.label : "Auto (router)";
 
   return (
     <>
@@ -95,36 +139,66 @@ export function ChatHeaderRight() {
           <Button
             variant="outline"
             size="sm"
-            className="hidden h-8 gap-1 rounded-full px-3 text-xs hover-elevate active-elevate-2 sm:flex"
+            className="hidden h-8 max-w-[14rem] gap-1 truncate rounded-full px-3 text-xs hover-elevate active-elevate-2 sm:flex"
             data-testid="button-model-picker"
           >
-            <span className="font-medium">{selectedModel.label}</span>
+            <Sparkles className="h-3 w-3 text-primary" />
+            <span className="truncate font-medium">{buttonLabel}</span>
             <ChevronDown className="h-3 w-3 text-muted-foreground" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="min-w-[14rem]">
-          <DropdownMenuLabel className="text-xs">AI Model</DropdownMenuLabel>
+        <DropdownMenuContent align="end" className="min-w-[16rem] max-h-[60vh] overflow-y-auto">
+          <DropdownMenuLabel className="text-xs">Model</DropdownMenuLabel>
           <DropdownMenuSeparator />
-          {MODELS.map((m) => (
+          <DropdownMenuItem
+            onClick={() => setSelectedModel(null)}
+            data-testid="model-auto"
+          >
+            <div className="flex flex-1 items-center justify-between">
+              <div>
+                <div className="text-sm font-medium">Auto (router)</div>
+                <div className="text-[10px] text-muted-foreground">
+                  Use routing rules with fallback
+                </div>
+              </div>
+              {!selected && <Check className="h-3.5 w-3.5 text-primary" />}
+            </div>
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          {!loaded && (
+            <DropdownMenuItem disabled>
+              <span className="text-xs text-muted-foreground">Loading…</span>
+            </DropdownMenuItem>
+          )}
+          {loaded && models.length === 0 && (
+            <DropdownMenuItem disabled>
+              <span className="text-xs text-muted-foreground">
+                No enabled models. Configure in Admin.
+              </span>
+            </DropdownMenuItem>
+          )}
+          {models.map((m) => (
             <DropdownMenuItem
               key={m.id}
               onClick={() => setSelectedModel(m.id)}
               data-testid={`model-${m.id}`}
             >
-              <div className="flex flex-1 flex-col">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-sm font-medium">{m.label}</span>
-                  {m.id === selectedModel.id && <Check className="h-3.5 w-3.5 text-primary" />}
+              <div className="flex flex-1 items-center justify-between gap-2">
+                <div>
+                  <div className="text-sm font-medium">{m.label}</div>
+                  <div className="text-[10px] text-muted-foreground capitalize">
+                    {m.provider}
+                  </div>
                 </div>
-                <span className="text-[10px] text-muted-foreground">{m.provider}</span>
+                {m.id === selectedModelId && <Check className="h-3.5 w-3.5 text-primary" />}
               </div>
             </DropdownMenuItem>
           ))}
           <DropdownMenuSeparator />
-          <DropdownMenuItem disabled>
-            <span className="text-[10px] text-muted-foreground">
-              Phase 3 e real wired hobe
-            </span>
+          <DropdownMenuItem asChild>
+            <Link href="/admin" className="text-xs text-muted-foreground">
+              Manage providers →
+            </Link>
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -147,7 +221,7 @@ export function ChatHeaderRight() {
           </Button>
         </TooltipTrigger>
         <TooltipContent side="bottom">
-          Voice output {voiceEnabled ? "on" : "off"} (Phase 7)
+          Voice output {voiceEnabled ? "on" : "off"}
         </TooltipContent>
       </Tooltip>
     </>

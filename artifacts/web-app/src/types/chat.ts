@@ -9,6 +9,15 @@ export interface MessageAttachment {
   mimeType?: string;
 }
 
+export interface MessageMeta {
+  provider?: string;
+  model?: string;
+  latencyMs?: number;
+  inputTokens?: number;
+  outputTokens?: number;
+  error?: string;
+}
+
 export interface Message {
   id: string;
   threadId: string;
@@ -17,6 +26,7 @@ export interface Message {
   attachments?: MessageAttachment[];
   createdAt: number;
   isStreaming?: boolean;
+  meta?: MessageMeta;
 }
 
 export interface Thread {

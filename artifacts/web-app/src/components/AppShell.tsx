@@ -10,15 +10,10 @@ import { SidebarContent } from "@/components/Sidebar";
 interface AppShellProps {
   children: ReactNode;
   title?: string;
-  /** Optional content placed in the centre of the top bar (e.g. editable thread title). */
   headerCenter?: ReactNode;
-  /** Optional content placed at the right of the top bar before settings/theme toggles. */
   headerRight?: ReactNode;
-  /** Optional sticky footer (e.g. quick-action chips + input bar). */
   footer?: ReactNode;
-  /** Hide the default settings link in the header (useful when headerRight provides its own). */
   hideSettingsLink?: boolean;
-  /** Disable the main scroll container — caller manages scroll inside `children`. */
   scrollContent?: boolean;
 }
 
@@ -35,14 +30,11 @@ export function AppShell({
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-background">
-      {/* Desktop sidebar */}
       <aside className="hidden lg:flex lg:w-72 lg:flex-shrink-0 border-r border-sidebar-border">
         <SidebarContent />
       </aside>
 
-      {/* Main content area */}
       <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Top bar */}
         <header className="sticky top-0 z-30 flex h-16 flex-shrink-0 items-center gap-2 border-b border-border bg-background/85 px-3 backdrop-blur-md md:px-4">
           <div className="flex flex-shrink-0 items-center gap-2">
             <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
@@ -51,7 +43,7 @@ export function AppShell({
                   variant="ghost"
                   size="icon"
                   className="lg:hidden hover-elevate active-elevate-2"
-                  aria-label="Menu kholun"
+                  aria-label="Open menu"
                   data-testid="button-mobile-menu"
                 >
                   <Menu className="h-5 w-5" />
@@ -82,14 +74,12 @@ export function AppShell({
             )}
           </div>
 
-          {/* Centre slot */}
           <div className="flex flex-1 items-center justify-center min-w-0 px-2">
             {headerCenter ?? (title ? (
               <span className="lg:hidden text-sm text-muted-foreground truncate">{title}</span>
             ) : null)}
           </div>
 
-          {/* Right slot */}
           <div className="flex flex-shrink-0 items-center gap-1">
             {headerRight}
             {!hideSettingsLink && (
@@ -108,7 +98,6 @@ export function AppShell({
           </div>
         </header>
 
-        {/* Page content */}
         {scrollContent ? (
           <main className="flex-1 overflow-y-auto" data-testid="main-content">
             {children}

@@ -18,7 +18,7 @@ export function ThemeToggle() {
           variant="ghost"
           size="icon"
           className="hover-elevate active-elevate-2"
-          aria-label="Theme change korun"
+          aria-label="Change theme"
           data-testid="button-theme-toggle"
         >
           <Sun className="h-[1.15rem] w-[1.15rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />

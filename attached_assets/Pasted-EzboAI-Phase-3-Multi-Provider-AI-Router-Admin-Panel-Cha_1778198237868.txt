@@ -1,0 +1,131 @@
+EzboAI Phase 3 — Multi-Provider AI Router + Admin Panel + Chat Backend
+What & Why
+This is the brain of EzboAI. Build a backend AI Router that supports 6 AI providers (OpenAI, OpenRouter, Anthropic Claude, xAI Grok, Replicate, Google Gemini), with API keys supplied by the user via a password-protected Admin Panel at /admin. The router picks the right provider+model per task type (chat-fast / chat-smart / vision / code / image-gen / audio / web-agent / embedding) and falls back automatically when one fails. Chat replies stream into the Phase 2 UI via Server-Sent Events.
+
+The user explicitly does NOT want to use Replit's AI Integration proxy — they will plug in their own keys. The admin panel must let them add/test/enable/disable keys per provider, choose which models from each provider are usable, and configure a fallback chain.
+
+Done looks like
+Backend
+New folder artifacts/api-server/src/ai/ with:
+providers/openai.ts, providers/openrouter.ts, providers/anthropic.ts, providers/xai.ts, providers/replicate.ts, providers/gemini.ts
+providers/types.ts — common interfaces (AIProvider, ChatRequest, ChatChunk, VisionRequest, Model, TaskType)
+router.ts — AIRouter class with stream(taskType, messages, opts), withFallback(...), hot-reload of config from DB
+crypto.ts — AES-256-GCM encrypt/decrypt for API keys
+usage.ts — record token usage to DB after each call
+New DB tables (Drizzle):
+provider_keys (id, provider, apiKey [encrypted], label, enabled, createdAt, updatedAt, lastTestedAt, lastTestStatus)
+routing_rules (id, taskType, providerOrder [jsonb: array of {provider, model}], createdAt, updatedAt)
+provider_usage (id, provider, model, taskType, inputTokens, outputTokens, latencyMs, costUsd, error, createdAt)
+admin_sessions (id, tokenHash, expiresAt, createdAt)
+New API routes:
+POST /api/admin/login — body {password}, sets HTTP-only cookie if matches ADMIN_PASSWORD
+POST /api/admin/logout
+GET /api/admin/me — returns {loggedIn: bool}
+GET /api/admin/providers — list (masked keys)
+POST /api/admin/providers — {provider, label, apiKey} add/update
+DELETE /api/admin/providers/:id
+PATCH /api/admin/providers/:id — {enabled, label}
+POST /api/admin/providers/:id/test — calls provider's testConnection; updates lastTestedAt, returns result
+GET /api/admin/providers/:id/models — fetches live model list
+GET /api/admin/routing-rules / PUT /api/admin/routing-rules — manage routing config
+GET /api/admin/usage — returns aggregated usage by day/provider/task
+POST /api/chat/stream — SSE: {messages, threadId?, modelOverride?}, calls router, streams chunks
+All admin routes protected by middleware checking the admin session cookie.
+All API key fields encrypted at rest using APP_ENCRYPTION_KEY env var (32 bytes, AES-256-GCM with random IV per row).
+Frontend never receives the raw key — only masked form like sk-...XXXX (last 4 chars).
+Admin Panel UI (frontend)
+/admin page with login screen if not authenticated.
+After login, four tabs:
+Providers — table of providers (OpenAI, OpenRouter, Anthropic, xAI, Replicate, Gemini), each row showing label, masked key, enabled toggle, "Test" button (turns green ✓ or red ✗ with tooltip), "Edit", "Delete". "+ Add" button opens a dialog to add a new key.
+Models — per provider, a checklist of available models (fetched live from provider). User toggles which models are enabled for routing. Shows context window, pricing, capabilities (vision, tool-use, etc).
+Routing Rules — table of task types with a drag-reorderable list of {provider, model} per task type:
+chat-fast (default: OpenAI gpt-4o-mini → Gemini Flash)
+chat-smart (default: Claude Sonnet → GPT-4o)
+vision (default: GPT-4o → Gemini Pro Vision)
+code (default: Claude Sonnet → DeepSeek via OpenRouter)
+image-gen (default: Replicate Flux → OpenAI DALL-E)
+audio-tts (default: OpenAI TTS → ElevenLabs via Replicate)
+audio-stt (default: OpenAI Whisper → Replicate Whisper)
+embedding (default: OpenAI text-embedding-3 → Gemini)
+web-agent (default: Claude Sonnet)
+User can drag to reorder fallback chain, add/remove items.
+Usage — chart showing token usage and estimated cost per day, broken down by provider; table of last 100 calls.
+All sections styled with shadcn/ui to match the chat app's theme.
+Chat integration
+The Phase 2 chat UI's "fake AI" is replaced with the real SSE call.
+Top bar's model picker dropdown now functional: shows the current default (from routing rules) for chat-smart, plus a list of all enabled models across all providers; selecting one sets modelOverride for the next message.
+Each AI message has a small footer badge: "via OpenAI gpt-4o · 1.2s · 320 tokens".
+If all providers fail, friendly Bangla error: "কোনো AI provider available নেই। Admin panel এ key add করুন।"
+Acceptance criteria
+Admin can log in at /admin with ADMIN_PASSWORD.
+Add an OpenAI key → "Test" → green check.
+Add a Claude key → "Test" → green check.
+Set chat-smart routing rule to Claude first → user sends "তুমি কে?" → reply streams from Claude (badge confirms).
+Disable Claude key → next message auto-falls back to OpenAI.
+Override model in chat dropdown to "Gemini Pro" → next message goes to Gemini.
+Restart server → encrypted keys still decrypt correctly, routing config persisted.
+Admin sees usage stats updating after each chat.
+Out of scope
+Vision-specific routing (used in Phase 8/9 — but the vision task type is set up here)
+Image generation routing called from UI (set up here, used later if added)
+Multi-user accounts (single-admin mode)
+Per-user API keys (all keys are global to the EzboAI instance)
+Steps
+Read skills — environment-secrets (to set ADMIN_PASSWORD, APP_ENCRYPTION_KEY, SESSION_SECRET), database (Drizzle schema push).
+Set required env vars — Use the environment-secrets skill to create ADMIN_PASSWORD, APP_ENCRYPTION_KEY (32 random bytes base64), SESSION_SECRET. Do not set any AI provider keys as env vars.
+Install deps in api-server — openai, @anthropic-ai/sdk, @google/genai, replicate, cookie-parser, express-session (or simple cookie auth), zod (validation).
+Drizzle schema — Add provider_keys, routing_rules, provider_usage, admin_sessions tables in artifacts/api-server/src/db/schema.ts. Run drizzle-kit push.
+Crypto utility — src/ai/crypto.ts with encrypt(plaintext) returning {ciphertext, iv, authTag} joined as a single string; decrypt(stored) reverses. Use crypto.createCipheriv('aes-256-gcm', key, iv).
+Provider adapter interface — src/ai/providers/types.ts defines the unified interface every provider implements.
+Implement each provider adapter:
+openai.ts — uses openai SDK; supports chat (streaming), vision, listModels, testConnection (calls models.list())
+openrouter.ts — same SDK with baseURL: 'https://openrouter.ai/api/v1'; listModels via OpenRouter's /models endpoint
+xai.ts — same SDK with baseURL: 'https://api.x.ai/v1'
+anthropic.ts — uses @anthropic-ai/sdk; converts standard messages to Anthropic format; supports streaming, vision, tool-use
+gemini.ts — uses @google/genai; converts to Gemini format
+replicate.ts — uses replicate SDK; mainly for image-gen, audio; chat support optional via Llama models
+AIRouter class — src/ai/router.ts:
+On startup, loads all enabled provider_keys (decrypts) and routing_rules from DB
+Method getProviderForTask(taskType) returns ordered list of {provider, model, apiKey} candidates
+Method stream(taskType, messages, opts) — tries first candidate, on error tries next, yields chunks; logs to provider_usage
+Method reload() — refetches from DB (called after admin updates)
+Admin auth middleware — checks signed cookie; protects all /api/admin/* routes.
+Admin routes — implement all CRUD endpoints listed above.
+Chat stream endpoint — /api/chat/stream:
+Validate body with zod
+Build message array (inject system prompt: Bangla EzboAI persona)
+Determine task type (default chat-smart; modelOverride bypasses rules)
+Call router.stream(...), pipe chunks as SSE events
+On done, emit {type: 'done', usage: {...}}
+Frontend Admin Panel — pages/Admin.tsx with tabs (use shadcn Tabs):
+Login dialog
+Providers table with add/edit/delete/test
+Models per provider (checkbox list)
+Routing rules with drag-and-drop (@dnd-kit/core)
+Usage chart (Recharts)
+Frontend chat integration — Replace the fake AI in chatStore with real SSE call to /api/chat/stream. Use EventSource or fetch+ReadableStream.
+Top bar model picker — fetch enabled models, render dropdown, store override per chat in localStorage.
+Provider badge in messages — extend messages schema to record provider and model per assistant message, show as footer badge.
+Test the full flow — add OpenAI key → chat → verify reply; add Claude key → switch routing → verify; disable a key → verify fallback.
+Code review — architect from code_review skill on the entire AI subsystem and admin panel; fix critical issues. Important: review encryption, auth, and key masking carefully.
+Update OpenAPI spec in lib/api-spec/openapi.yaml for all new endpoints.
+Mark complete — Phase 4 unblocks.
+Critical constraints / Security
+API keys MUST be encrypted at rest. Never log raw keys. Never include raw keys in API responses (always mask).
+Admin password stored only in env var, never in DB; compare with crypto.timingSafeEqual to prevent timing attacks.
+Session cookies must be HTTP-only, Secure (in production), SameSite=Lax.
+Rate-limit /api/admin/login to prevent brute-force (e.g. 5 attempts per 15 min per IP).
+All admin routes require valid session.
+The chat stream endpoint should NOT require admin auth (chat is for end users); but it requires at least one configured provider, otherwise returns a clean error.
+Validate all user inputs with zod before touching DB or providers.
+Relevant files
+artifacts/api-server/src/app.ts
+artifacts/api-server/src/routes/index.ts
+artifacts/api-server/src/db/schema.ts (existing or to be created)
+lib/api-spec/openapi.yaml
+.local/skills/environment-secrets/SKILL.md
+.local/skills/database/SKILL.md
+.local/tasks/ezboai-full-build-guide.md (Phase 3 section is the primary reference)
+All Phase 2 frontend files in artifacts/web-app/src/
+Dependencies
+EzboAI Phase 2 — Chat UI

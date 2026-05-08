@@ -56,10 +56,10 @@ function groupThreads(threads: Thread[]): GroupedThreads[] {
   const weekStart = startOfWeek(now, { weekStartsOn: 1 });
 
   const groups: GroupedThreads[] = [
-    { label: "আজ", threads: [] },
-    { label: "গতকাল", threads: [] },
-    { label: "এই সপ্তাহ", threads: [] },
-    { label: "আগের", threads: [] },
+    { label: "Today", threads: [] },
+    { label: "Yesterday", threads: [] },
+    { label: "This week", threads: [] },
+    { label: "Older", threads: [] },
   ];
 
   for (const t of threads) {
@@ -100,7 +100,7 @@ export function ThreadList({ searchQuery, onThreadSelected }: ThreadListProps) {
   const getPreview = (threadId: string): string => {
     const msgs = messagesByThread[threadId] ?? [];
     const last = msgs[msgs.length - 1];
-    if (!last) return "Khali chat";
+    if (!last) return "Empty chat";
     return last.content.replace(/\s+/g, " ").trim().slice(0, 40);
   };
 
@@ -108,11 +108,9 @@ export function ThreadList({ searchQuery, onThreadSelected }: ThreadListProps) {
     return (
       <div className="rounded-lg border border-dashed border-sidebar-border bg-sidebar-accent/30 px-3 py-8 text-center">
         <MessageSquare className="mx-auto h-6 w-6 text-muted-foreground/60" />
-        <p className="mt-2 text-xs text-muted-foreground" lang="bn">
-          এখনো কোন chat নাই
-        </p>
+        <p className="mt-2 text-xs text-muted-foreground">No chats yet</p>
         <p className="mt-0.5 text-[10px] text-muted-foreground/70">
-          + Notun Chat e click korun
+          Click + New Chat to begin
         </p>
       </div>
     );
@@ -121,7 +119,7 @@ export function ThreadList({ searchQuery, onThreadSelected }: ThreadListProps) {
   if (filtered.length === 0) {
     return (
       <p className="px-3 py-6 text-center text-xs text-muted-foreground">
-        Search e match pawa jay nai
+        No matches found
       </p>
     );
   }
@@ -185,7 +183,7 @@ export function ThreadList({ searchQuery, onThreadSelected }: ThreadListProps) {
                           Rename
                         </DropdownMenuItem>
                         <DropdownMenuItem
-                          onClick={() => toast.info("Export Phase 12 e ashbe")}
+                          onClick={() => toast.info("Export coming soon")}
                         >
                           <Download className="mr-2 h-3.5 w-3.5" />
                           Export
@@ -208,12 +206,11 @@ export function ThreadList({ searchQuery, onThreadSelected }: ThreadListProps) {
         ))}
       </div>
 
-      {/* Rename dialog */}
       <Dialog open={!!renamingThread} onOpenChange={(o) => !o && setRenamingThread(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Chat rename</DialogTitle>
-            <DialogDescription>Notun naam din ei chat er jonno</DialogDescription>
+            <DialogTitle>Rename chat</DialogTitle>
+            <DialogDescription>Give this chat a new title</DialogDescription>
           </DialogHeader>
           <Input
             value={renameValue}
@@ -224,7 +221,7 @@ export function ThreadList({ searchQuery, onThreadSelected }: ThreadListProps) {
               if (e.key === "Enter" && renamingThread && renameValue.trim()) {
                 renameThread(renamingThread.id, renameValue);
                 setRenamingThread(null);
-                toast.success("Rename hoye geche");
+                toast.success("Renamed");
               }
             }}
             data-testid="input-rename-thread"
@@ -239,7 +236,7 @@ export function ThreadList({ searchQuery, onThreadSelected }: ThreadListProps) {
                 if (renamingThread && renameValue.trim()) {
                   renameThread(renamingThread.id, renameValue);
                   setRenamingThread(null);
-                  toast.success("Rename hoye geche");
+                  toast.success("Renamed");
                 }
               }}
               data-testid="button-confirm-rename"
@@ -250,13 +247,12 @@ export function ThreadList({ searchQuery, onThreadSelected }: ThreadListProps) {
         </DialogContent>
       </Dialog>
 
-      {/* Delete confirmation */}
       <AlertDialog open={!!deletingThread} onOpenChange={(o) => !o && setDeletingThread(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Chat delete korben?</AlertDialogTitle>
+            <AlertDialogTitle>Delete this chat?</AlertDialogTitle>
             <AlertDialogDescription>
-              "{deletingThread?.title}" chat ar shob messages stay-er moto delete hoye jabe. Eta undo kora jabe na.
+              "{deletingThread?.title}" and all its messages will be permanently deleted. This cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -266,7 +262,7 @@ export function ThreadList({ searchQuery, onThreadSelected }: ThreadListProps) {
               onClick={() => {
                 if (deletingThread) {
                   deleteThread(deletingThread.id);
-                  toast.success("Chat delete hoye geche");
+                  toast.success("Chat deleted");
                   setDeletingThread(null);
                 }
               }}

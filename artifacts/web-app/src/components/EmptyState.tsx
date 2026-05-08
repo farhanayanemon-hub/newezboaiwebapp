@@ -2,10 +2,26 @@ import { Sparkles, CloudSun, FileText, Mail, Lightbulb } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 
 const EXAMPLES = [
-  { icon: CloudSun, title: "Aajker abhawa", bangla: "আজকের আবহাওয়া কেমন?", template: "আজকের আবহাওয়া কেমন? Bangladesh er Dhaka shohorer." },
-  { icon: FileText, title: "Document summary", bangla: "এই PDF টা summarize করো", template: "Ei document ta summarize koren:\n\n" },
-  { icon: Mail, title: "Email draft", bangla: "একটা email draft করো", template: "Boss ke ekta professional leave application email draft koren — 3 din chuti er jonno" },
-  { icon: Lightbulb, title: "Concept explain", bangla: "Quantum computing ki?", template: "Quantum computing ki? Simple Bangla bhashay bujhiye den" },
+  {
+    icon: CloudSun,
+    title: "Today's weather",
+    prompt: "What's the weather like in Dhaka, Bangladesh today?",
+  },
+  {
+    icon: FileText,
+    title: "Document summary",
+    prompt: "Summarize the following document for me:\n\n",
+  },
+  {
+    icon: Mail,
+    title: "Email draft",
+    prompt: "Draft a professional 3-day leave application email to my manager.",
+  },
+  {
+    icon: Lightbulb,
+    title: "Concept explainer",
+    prompt: "Explain quantum computing in simple terms.",
+  },
 ];
 
 interface EmptyStateProps {
@@ -18,19 +34,16 @@ export function EmptyState({ onPromptSelect }: EmptyStateProps) {
       <div className="w-full max-w-2xl text-center">
         <div className="mb-5 inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1 text-xs font-medium text-muted-foreground shadow-sm">
           <Sparkles className="h-3 w-3 text-accent" />
-          <span>Phase 2 — Chat UI Ready</span>
+          <span>Multi-Provider AI Router</span>
         </div>
         <h1 className="bg-gradient-to-br from-foreground via-foreground to-primary bg-clip-text text-3xl font-bold tracking-tight text-transparent sm:text-4xl">
           EzboAI
         </h1>
-        <p
-          className="mt-3 text-base text-muted-foreground sm:text-lg"
-          lang="bn"
-        >
-          আপনার Bangla AI সহকারী
+        <p className="mt-3 text-base text-muted-foreground sm:text-lg">
+          Your personal AI assistant
         </p>
         <p className="mt-1.5 text-xs text-muted-foreground/70">
-          Niche je kono example e click korun, ba ekhon nije likhe shuru korun
+          Pick an example below or start typing your own prompt
         </p>
 
         <div className="mt-8 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
@@ -41,11 +54,11 @@ export function EmptyState({ onPromptSelect }: EmptyStateProps) {
                 key={ex.title}
                 role="button"
                 tabIndex={0}
-                onClick={() => onPromptSelect(ex.template)}
+                onClick={() => onPromptSelect(ex.prompt)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault();
-                    onPromptSelect(ex.template);
+                    onPromptSelect(ex.prompt);
                   }
                 }}
                 className="cursor-pointer text-left hover-elevate active-elevate-2 transition-shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -57,10 +70,12 @@ export function EmptyState({ onPromptSelect }: EmptyStateProps) {
                       <Icon className="h-4 w-4" />
                     </div>
                     <div className="flex-1">
-                      <p className="text-sm font-medium text-foreground" lang="bn">
-                        {ex.bangla}
+                      <p className="text-sm font-medium text-foreground">
+                        {ex.title}
                       </p>
-                      <p className="mt-0.5 text-xs text-muted-foreground">{ex.title}</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground line-clamp-2">
+                        {ex.prompt}
+                      </p>
                     </div>
                   </div>
                 </CardContent>

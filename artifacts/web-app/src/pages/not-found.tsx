@@ -11,11 +11,11 @@ export default function NotFound() {
           <Compass className="h-8 w-8" />
         </div>
         <p className="mt-6 text-7xl font-bold tracking-tight text-foreground">404</p>
-        <h1 className="mt-2 text-xl font-semibold text-foreground" lang="bn">
-          Page khuje pawa jay nai
+        <h1 className="mt-2 text-xl font-semibold text-foreground">
+          Page not found
         </h1>
         <p className="mt-2 max-w-md text-sm text-muted-foreground">
-          Apni je page khujchen seta exist kore na, ba sorano hoyeche
+          The page you are looking for does not exist or has been moved.
         </p>
         <Button
           asChild
@@ -24,7 +24,7 @@ export default function NotFound() {
         >
           <Link href="/" data-testid="button-go-home">
             <Home className="h-4 w-4" />
-            <span>Home e firen</span>
+            <span>Back to home</span>
           </Link>
         </Button>
       </div>

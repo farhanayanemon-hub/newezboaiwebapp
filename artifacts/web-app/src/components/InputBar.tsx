@@ -17,17 +17,17 @@ interface InputBarProps {
 }
 
 const PHASE_HINTS = {
-  mic: "ভয়েস ইনপুট — Phase 7 এ আসবে",
-  camera: "ক্যামেরা — Phase 8 এ আসবে",
-  screen: "স্ক্রিন শেয়ার — Phase 9 এ আসবে",
-  file: "ফাইল আপলোড — Phase 6 এ আসবে",
+  mic: "Voice input — coming soon",
+  camera: "Camera — coming soon",
+  screen: "Screen share — coming soon",
+  file: "File upload — coming soon",
 };
 
 const ARIA_LABELS = {
-  mic: "ভয়েস ইনপুট",
-  camera: "ক্যামেরা",
-  screen: "স্ক্রিন শেয়ার",
-  file: "ফাইল যোগ করুন",
+  mic: "Voice input",
+  camera: "Camera",
+  screen: "Screen share",
+  file: "Add a file",
 };
 
 export function InputBar({
@@ -76,7 +76,6 @@ export function InputBar({
             "focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/20 focus-within:shadow-md",
           )}
         >
-          {/* Left action buttons */}
           <div className="flex items-center gap-0.5 pb-0.5 pl-0.5">
             {iconButtons.map(({ key, icon: Icon }) => (
               <Tooltip key={key}>
@@ -92,14 +91,11 @@ export function InputBar({
                     <Icon className="h-4 w-4" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent side="top" lang="bn">
-                  {PHASE_HINTS[key]}
-                </TooltipContent>
+                <TooltipContent side="top">{PHASE_HINTS[key]}</TooltipContent>
               </Tooltip>
             ))}
           </div>
 
-          {/* Textarea */}
           <div className="relative flex-1 py-1.5">
             <TextareaAutosize
               ref={textareaRef}
@@ -108,7 +104,7 @@ export function InputBar({
               onKeyDown={handleKeyDown}
               onCompositionStart={() => setComposing(true)}
               onCompositionEnd={() => setComposing(false)}
-              placeholder="Bangla, Banglish, ba English e likhun..."
+              placeholder="Message EzboAI..."
               maxRows={8}
               minRows={1}
               disabled={disabled}
@@ -117,7 +113,6 @@ export function InputBar({
                 "block w-full resize-none border-0 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/70 focus:outline-none focus:ring-0",
                 "leading-6",
               )}
-              style={{ fontFamily: "var(--app-font-bengali)" }}
             />
             {showCounter && (
               <div className="pointer-events-none absolute -bottom-0.5 right-1 text-[10px] text-muted-foreground/70">
@@ -126,7 +121,6 @@ export function InputBar({
             )}
           </div>
 
-          {/* Send / Stop button */}
           <div className="pb-0.5 pr-0.5">
             {isStreaming ? (
               <Tooltip>
@@ -136,13 +130,13 @@ export function InputBar({
                     size="icon"
                     className="h-9 w-9 rounded-xl bg-destructive hover:bg-destructive/90 hover-elevate active-elevate-2"
                     onClick={onStop}
-                    aria-label="থামান"
+                    aria-label="Stop"
                     data-testid="button-stop"
                   >
                     <StopCircle className="h-4 w-4" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent side="top" lang="bn">থামান</TooltipContent>
+                <TooltipContent side="top">Stop</TooltipContent>
               </Tooltip>
             ) : (
               <Tooltip>
@@ -151,21 +145,21 @@ export function InputBar({
                     size="icon"
                     disabled={!canSend}
                     onClick={onSend}
-                    aria-label="পাঠান"
+                    aria-label="Send"
                     className="h-9 w-9 rounded-xl shadow-sm shadow-primary/20 hover-elevate active-elevate-2"
                     data-testid="button-send"
                   >
                     <Send className="h-4 w-4" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent side="top" lang="bn">পাঠান (Enter)</TooltipContent>
+                <TooltipContent side="top">Send (Enter)</TooltipContent>
               </Tooltip>
             )}
           </div>
         </div>
 
         <p className="mt-2 text-center text-[10px] text-muted-foreground/60">
-          Enter pathate, Shift+Enter notun line. AI sometimes mistakes kore — verify korben.
+          Press Enter to send, Shift+Enter for a new line. AI can make mistakes — please verify.
         </p>
       </div>
     </div>

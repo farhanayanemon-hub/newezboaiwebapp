@@ -43,7 +43,7 @@ export function SidebarContent({ onNavigate }: SidebarContentProps) {
           data-testid="button-new-chat"
         >
           <Plus className="h-4 w-4" />
-          <span>Notun Chat</span>
+          <span>New Chat</span>
         </Button>
 
         <div className="relative">
@@ -52,7 +52,7 @@ export function SidebarContent({ onNavigate }: SidebarContentProps) {
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Khujte type korun..."
+            placeholder="Search chats..."
             className="h-8 pl-8 text-xs"
             data-testid="input-search-threads"
           />

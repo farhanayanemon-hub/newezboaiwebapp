@@ -1,6 +1,6 @@
 /**
- * Typed fetch wrapper for EzboAI backend.
- * Phase 3 will wire real endpoints; this is a stub for the foundation.
+ * Typed fetch wrapper for the EzboAI backend.
+ * Includes credentials so admin-session cookies are sent automatically.
  */
 
 const BASE_URL =
@@ -22,23 +22,26 @@ type RequestOptions = Omit<RequestInit, "body"> & {
   searchParams?: Record<string, string | number | boolean | undefined>;
 };
 
-async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { body, searchParams, headers, ...rest } = options;
-
+function buildUrl(path: string, searchParams?: RequestOptions["searchParams"]): string {
+  const base = BASE_URL.replace(/\/$/, "");
+  const cleaned = path.startsWith("http") ? path : `${base}/${path.replace(/^\//, "")}`;
+  if (!searchParams) return cleaned;
   const url = new URL(
-    path.startsWith("http") ? path : `${BASE_URL.replace(/\/$/, "")}/${path.replace(/^\//, "")}`,
+    cleaned,
     typeof window !== "undefined" ? window.location.origin : "http://localhost",
   );
-
-  if (searchParams) {
-    for (const [key, value] of Object.entries(searchParams)) {
-      if (value !== undefined) {
-        url.searchParams.set(key, String(value));
-      }
-    }
+  for (const [key, value] of Object.entries(searchParams)) {
+    if (value !== undefined) url.searchParams.set(key, String(value));
   }
+  return url.toString();
+}
+
+async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  const { body, searchParams, headers, ...rest } = options;
+  const url = buildUrl(path, searchParams);
 
   const init: RequestInit = {
+    credentials: "include",
     ...rest,
     headers: {
       "Content-Type": "application/json",
@@ -46,12 +49,11 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
       ...headers,
     },
   };
-
   if (body !== undefined) {
     init.body = typeof body === "string" ? body : JSON.stringify(body);
   }
 
-  const response = await fetch(url.toString(), init);
+  const response = await fetch(url, init);
 
   let payload: unknown = undefined;
   const contentType = response.headers.get("content-type") ?? "";
@@ -64,7 +66,6 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   if (!response.ok) {
     throw new ApiError(response.status, response.statusText, payload);
   }
-
   return payload as T;
 }
 
@@ -80,5 +81,9 @@ export const apiClient = {
   delete: <T>(path: string, options?: Omit<RequestOptions, "body" | "method">) =>
     request<T>(path, { ...options, method: "DELETE" }),
 };
+
+export function streamUrl(path: string): string {
+  return buildUrl(path);
+}
 
 export type { RequestOptions };

@@ -1,0 +1,81 @@
+ EzboAI Phase 2 — Chat UI (Frontend Only)
+What & Why
+Build the complete chat interface visually — message bubbles, input bar with all buttons, sidebar with thread list, top bar, quick action chips, typing indicator, empty states. No AI, no database — purely UI with local React state. After this phase, the user can type messages and see them appear as bubbles, switch between local "threads" stored in localStorage, and the UI looks production-ready. Phase 3 then wires the AI backend and Phase 4 wires the database.
+
+This phase establishes every visual pattern and component the rest of the app will reuse.
+
+Done looks like
+Message bubbles rendering correctly:
+User: right-aligned, primary brand color background, white text
+AI: left-aligned, neutral background, EzboAI avatar circle on the left
+Each bubble shows timestamp on hover
+Each bubble has a copy-to-clipboard icon button (top-right of bubble) that copies the message text
+Markdown rendered properly: bold, italic, lists, links, blockquotes, inline code
+Code blocks rendered with syntax highlighting (react-syntax-highlighter with a Prism theme that matches dark/light mode)
+Long messages wrap, no horizontal overflow
+Input bar (sticky bottom):
+Multiline textarea (auto-grows up to 8 rows, then scrolls)
+Enter sends, Shift+Enter newline
+Disabled send button when empty/whitespace
+4 left icon buttons in a row: 🎤 Mic, 📷 Camera, 🖥️ Screen, 📎 File — each a styled icon button with tooltip in Bangla; clicking each shows a "Coming in Phase X" toast for now
+Send button (paper-plane icon) on the right
+Character counter (subtle, bottom-right) when text > 500 chars
+Quick action chips in a horizontal scroll row above the input: 8 chips (Summarize, Translate, Explain, Rewrite, Code Help, Math, Email, Custom). Clicking a chip pre-fills input with a template prompt; functionality fully wired in Phase 5 but the click+pre-fill works now.
+Sidebar (left):
+Sticky "+ New Chat" button at top (creates a new local thread, switches to it, clears the chat area)
+Search input below (filters thread list as user types)
+Thread list grouped by date: "আজ", "গতকাল", "এই সপ্তাহ", "আগের"
+Each thread item: title (truncated to 1 line), preview snippet (last message first 40 chars), 3-dot menu (Rename, Delete, Export — Export does nothing yet)
+Active thread highlighted
+Footer: link to /admin and /settings
+Mobile: sidebar becomes a Sheet drawer triggered by a hamburger icon in the top bar
+Top bar:
+Hamburger (mobile only, opens sidebar)
+EzboAI logo (left)
+Editable chat title (center, click to rename current thread inline)
+Model picker dropdown (right) — placeholder "GPT-4o" badge for now (Phase 3 makes it functional)
+Voice toggle 🔊/🔇 icon (placeholder until Phase 7)
+Theme toggle (existing from Phase 1)
+Settings gear (existing)
+Typing indicator — when a (fake) AI is "responding", show three animated dots in the AI's bubble area. For Phase 2, simulate by adding a 1.5 second timer after user sends — fake AI bubble appears with placeholder "Phase 3 wires real AI"
+Auto-scroll — chat area scrolls to bottom when a new message arrives, but only if user was already near the bottom (don't yank scroll if they scrolled up to read)
+Empty state in chat area (no thread selected or new empty thread): the welcome card from Phase 1 with example prompts that, when clicked, fill the input
+Local persistence — threads + messages saved to localStorage so refresh doesn't lose state (will be replaced by DB in Phase 4)
+Animations — smooth message-appear animation (Framer Motion, fade + slide-up)
+Accessibility — proper ARIA labels on all icon buttons, keyboard navigable, focus rings visible
+Out of scope
+Real AI replies (Phase 3)
+Database persistence (Phase 4)
+Mic / Camera / Screen / File button functionality (Phases 6-9)
+Quick action prompts actually calling AI (Phase 5)
+Voice TTS reading replies (Phase 7)
+Steps
+Install deps — react-markdown, remark-gfm, react-syntax-highlighter, @types/react-syntax-highlighter, framer-motion, date-fns (for date grouping), nanoid (thread/message IDs).
+Type definitions — types/chat.ts: Message { id, threadId, role: 'user'|'assistant'|'system', content, attachments?, createdAt }, Thread { id, title, createdAt, updatedAt }.
+Local store — stores/chatStore.ts (Zustand or Context): holds threads, messages, activeThreadId; methods createThread, deleteThread, renameThread, addMessage, setActiveThread. Persists to localStorage with debounce.
+MessageBubble component — render a single message with avatar, content (markdown), timestamp on hover, copy button. Use react-markdown + remark-gfm. Code blocks via SyntaxHighlighter with a theme that switches per dark/light.
+MessageList component — virtualized if >100 messages (use react-window if needed), otherwise simple flex column with auto-scroll behavior.
+InputBar component — textarea with auto-grow (react-textarea-autosize), 4 left icon buttons, send button. On send, calls addMessage then triggers fake AI response after delay.
+QuickActionChips component — horizontally scrollable, 8 chips with icons + Bangla labels. Each has a template prop; click pre-fills the input.
+Sidebar component — full implementation with grouping, search, 3-dot menu (use DropdownMenu from shadcn).
+TopBar enhancements — add editable title (use a small inline editable component), model picker dropdown (placeholder), voice toggle button.
+EmptyState component — welcome card with example prompts; clicking a prompt fills the input.
+Animations — framer-motion <AnimatePresence> around message list for enter/exit animations.
+Auto-scroll hook — useAutoScroll(ref, deps, options) that scrolls to bottom only if user is near bottom.
+Mobile drawer — wrap sidebar in shadcn Sheet for mobile; hamburger button in TopBar opens it.
+Toast for unimplemented buttons — sonner toast: "এই feature Phase X এ আসছে" when user clicks unwired buttons.
+Visual QA — test on desktop and mobile viewports, dark and light modes, with long messages, code blocks, many threads. Take screenshots.
+Code review — architect from code_review skill; fix issues.
+Mark complete — Phase 3 unblocks.
+Critical constraints
+Reuse Phase 1's AppShell, TopBar, Sidebar components — extend, don't duplicate.
+All Bangla strings hardcoded in components for now (i18n added later if needed).
+Keep chatStore provider-agnostic — Phase 3 will plug AI calls into the same store interface.
+Don't store secrets/keys anywhere in the frontend.
+Use shadcn primitives for all UI elements — no custom button/input.
+Relevant files
+All files created in Phase 1 inside artifacts/web-app/
+Will create: src/types/chat.ts, src/stores/chatStore.ts, src/components/MessageBubble.tsx, src/components/MessageList.tsx, src/components/InputBar.tsx, src/components/QuickActionChips.tsx, src/components/EmptyState.tsx, src/hooks/useAutoScroll.ts
+Dependencies
+EzboAI Phase 1 — Foundation Setup
+

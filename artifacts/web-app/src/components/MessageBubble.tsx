@@ -31,6 +31,12 @@ const sanitizeSchema = {
   },
 };
 
+function formatLatency(ms?: number): string | null {
+  if (!ms || ms <= 0) return null;
+  if (ms < 1000) return `${ms}ms`;
+  return `${(ms / 1000).toFixed(1)}s`;
+}
+
 function MessageBubbleImpl({ message }: MessageBubbleProps) {
   const [copied, setCopied] = useState(false);
   const { resolvedTheme } = useTheme();
@@ -40,12 +46,16 @@ function MessageBubbleImpl({ message }: MessageBubbleProps) {
     try {
       await navigator.clipboard.writeText(message.content);
       setCopied(true);
-      toast.success("Copy hoye geche");
+      toast.success("Copied");
       window.setTimeout(() => setCopied(false), 1800);
     } catch {
-      toast.error("Copy korte parlam na");
+      toast.error("Could not copy");
     }
   };
+
+  const meta = message.meta;
+  const totalTokens = (meta?.inputTokens ?? 0) + (meta?.outputTokens ?? 0);
+  const latency = formatLatency(meta?.latencyMs);
 
   return (
     <motion.div
@@ -73,7 +83,6 @@ function MessageBubbleImpl({ message }: MessageBubbleProps) {
             : "bg-card text-card-foreground border border-card-border rounded-bl-sm",
         )}
       >
-        {/* Copy button */}
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
@@ -95,7 +104,6 @@ function MessageBubbleImpl({ message }: MessageBubbleProps) {
           <TooltipContent side="top">{copied ? "Copied" : "Copy"}</TooltipContent>
         </Tooltip>
 
-        {/* Content */}
         <div
           className={cn(
             "prose prose-sm max-w-none break-words",
@@ -146,12 +154,7 @@ function MessageBubbleImpl({ message }: MessageBubbleProps) {
               },
               a({ href, children, ...props }) {
                 return (
-                  <a
-                    href={href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    {...props}
-                  >
+                  <a href={href} target="_blank" rel="noopener noreferrer" {...props}>
                     {children}
                   </a>
                 );
@@ -162,7 +165,26 @@ function MessageBubbleImpl({ message }: MessageBubbleProps) {
           </ReactMarkdown>
         </div>
 
-        {/* Timestamp */}
+        {!isUser && meta && (meta.provider || meta.error) && (
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground/80">
+            {meta.error ? (
+              <span className="rounded-full bg-destructive/10 px-2 py-0.5 font-medium text-destructive">
+                {meta.error}
+              </span>
+            ) : (
+              <>
+                {meta.provider && (
+                  <span className="rounded-full bg-muted/60 px-2 py-0.5 font-medium">
+                    via {meta.provider}{meta.model ? ` · ${meta.model}` : ""}
+                  </span>
+                )}
+                {latency && <span>{latency}</span>}
+                {totalTokens > 0 && <span>· {totalTokens.toLocaleString()} tokens</span>}
+              </>
+            )}
+          </div>
+        )}
+
         <div
           className={cn(
             "mt-1 text-[10px] opacity-0 transition-opacity group-hover/bubble:opacity-70",
