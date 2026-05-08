@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, uuid, index } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, uuid, uniqueIndex } from "drizzle-orm/pg-core";
 
 export const memorySources = ["chat", "manual"] as const;
 export type MemorySource = (typeof memorySources)[number];
@@ -14,7 +14,7 @@ export const memoriesTable = pgTable(
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
   (t) => ({
-    keyIdx: index("memories_key_idx").on(t.key),
+    keyUniq: uniqueIndex("memories_key_uniq").on(t.key),
   }),
 );
 

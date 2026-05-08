@@ -180,18 +180,27 @@ export default function ChatPage() {
             conversationCache.patchMessage(qc, cid, assistantMessage.id, {
               meta: { error: msg },
             });
+            // Reconcile with server state — partial assistant output may have
+            // been persisted before the error.
+            qc.invalidateQueries({ queryKey: conversationKeys.detail(cid) });
+            qc.invalidateQueries({ queryKey: conversationKeys.list() });
           },
         },
       );
     } catch (err) {
-      if (!(err instanceof DOMException && err.name === "AbortError")) {
+      const isAbort = err instanceof DOMException && err.name === "AbortError";
+      const cid = resolvedConvId ?? activeConversationId;
+      if (!isAbort && cid) {
         const msg = err instanceof Error ? err.message : String(err);
-        const cid = resolvedConvId ?? activeConversationId;
-        if (cid) {
-          conversationCache.patchMessage(qc, cid, assistantMessage.id, {
-            meta: { error: msg },
-          });
-        }
+        conversationCache.patchMessage(qc, cid, assistantMessage.id, {
+          meta: { error: msg },
+        });
+      }
+      // Whether aborted or errored, reconcile with the server so optimistic
+      // entries are replaced with whatever was actually persisted.
+      if (cid) {
+        qc.invalidateQueries({ queryKey: conversationKeys.detail(cid) });
+        qc.invalidateQueries({ queryKey: conversationKeys.list() });
       }
     } finally {
       abortControllers.current.delete(optimisticConvId);

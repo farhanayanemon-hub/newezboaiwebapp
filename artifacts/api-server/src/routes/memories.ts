@@ -27,12 +27,14 @@ router.post("/", async (req, res) => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+  const k = parsed.data.key.trim().toLowerCase();
+  const v = parsed.data.value.trim();
   const [row] = await db
     .insert(memoriesTable)
-    .values({
-      key: parsed.data.key,
-      value: parsed.data.value,
-      source: parsed.data.source ?? "manual",
+    .values({ key: k, value: v, source: parsed.data.source ?? "manual" })
+    .onConflictDoUpdate({
+      target: memoriesTable.key,
+      set: { value: v, source: parsed.data.source ?? "manual", updatedAt: new Date() },
     })
     .returning();
   res.status(201).json({ memory: row });
@@ -75,19 +77,13 @@ export async function upsertMemoryFromChat(key: string, value: string): Promise<
   const k = key.toLowerCase().trim();
   const v = value.trim();
   if (!k || !v) return;
-  const existing = await db
-    .select()
-    .from(memoriesTable)
-    .where(eq(memoriesTable.key, k))
-    .limit(1);
-  if (existing[0]) {
-    await db
-      .update(memoriesTable)
-      .set({ value: v, source: "chat", updatedAt: new Date() })
-      .where(eq(memoriesTable.id, existing[0].id));
-  } else {
-    await db.insert(memoriesTable).values({ key: k, value: v, source: "chat" });
-  }
+  await db
+    .insert(memoriesTable)
+    .values({ key: k, value: v, source: "chat" })
+    .onConflictDoUpdate({
+      target: memoriesTable.key,
+      set: { value: v, source: "chat", updatedAt: new Date() },
+    });
 }
 
 export default router;

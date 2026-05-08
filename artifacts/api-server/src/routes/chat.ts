@@ -39,7 +39,17 @@ router.post("/stream", async (req, res) => {
   // Resolve conversation: use provided, or auto-create.
   let conversationId = parsed.data.conversationId;
   let conversationCreated = false;
-  if (!conversationId) {
+  if (conversationId) {
+    const existing = await db
+      .select({ id: conversationsTable.id })
+      .from(conversationsTable)
+      .where(eq(conversationsTable.id, conversationId))
+      .limit(1);
+    if (!existing[0]) {
+      res.status(404).json({ error: "Conversation not found" });
+      return;
+    }
+  } else {
     const [row] = await db
       .insert(conversationsTable)
       .values({ title: "New chat" })
@@ -64,20 +74,25 @@ router.post("/stream", async (req, res) => {
   const userMessages = messages.filter((m) => m.role !== "system");
   const lastUser = [...userMessages].reverse().find((m) => m.role === "user");
 
-  // Persist the latest user message before invoking the AI.
+  // Persist the latest user message before invoking the AI. Failures here
+  // are surfaced to the client because they break the persistence contract.
   if (lastUser) {
-    await db
-      .insert(messagesTable)
-      .values({
+    try {
+      await db.insert(messagesTable).values({
         conversationId,
         role: "user",
         content: lastUser.content,
-      })
-      .catch((err) => req.log?.error({ err }, "failed to persist user message"));
-    await db
-      .update(conversationsTable)
-      .set({ updatedAt: new Date() })
-      .where(eq(conversationsTable.id, conversationId));
+      });
+      await db
+        .update(conversationsTable)
+        .set({ updatedAt: new Date() })
+        .where(eq(conversationsTable.id, conversationId));
+    } catch (err) {
+      req.log?.error({ err }, "failed to persist user message");
+      send({ type: "error", message: "Failed to save your message. Please try again." });
+      res.end();
+      return;
+    }
   }
 
   const systemPrompt = await buildSystemPrompt();
@@ -106,22 +121,21 @@ router.post("/stream", async (req, res) => {
       );
     }
 
-    await db
-      .insert(messagesTable)
-      .values({
+    try {
+      await db.insert(messagesTable).values({
         conversationId,
         role: "assistant",
         content: cleaned || fullReply,
         provider: out.provider,
         model: out.model,
-      })
-      .catch((err) =>
-        req.log?.error({ err }, "failed to persist assistant message"),
-      );
-    await db
-      .update(conversationsTable)
-      .set({ updatedAt: new Date() })
-      .where(eq(conversationsTable.id, conversationId));
+      });
+      await db
+        .update(conversationsTable)
+        .set({ updatedAt: new Date() })
+        .where(eq(conversationsTable.id, conversationId));
+    } catch (err) {
+      req.log?.error({ err }, "failed to persist assistant message");
+    }
 
     send({
       type: "done",
