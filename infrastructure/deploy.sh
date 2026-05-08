@@ -44,7 +44,7 @@ pnpm --filter @workspace/api-server run build
 log "5/7 Build web-app"
 # vite.config.ts insists on PORT being set even at build time (used to bind
 # the dev server). Provide a placeholder for the build.
-PORT="${PORT:-3000}" pnpm --filter @workspace/web-app run build
+PORT="${PORT:-3000}" BASE_PATH="${BASE_PATH:-/}" pnpm --filter @workspace/web-app run build
 
 log "6/7 Database migrate"
 if [ -f .env.production ]; then
