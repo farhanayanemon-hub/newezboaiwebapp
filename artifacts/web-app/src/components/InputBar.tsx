@@ -7,7 +7,9 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { MicButton } from "@/components/MicButton";
 import { CameraOverlay } from "@/components/CameraOverlay";
+import { ScreenShareOverlay } from "@/components/ScreenShareOverlay";
 import { useCameraStore } from "@/stores/cameraStore";
+import { useScreenShareStore } from "@/stores/screenShareStore";
 
 interface InputBarProps {
   value: string;
@@ -22,10 +24,6 @@ interface InputBarProps {
   /** True when at least one file has been attached but not yet sent. */
   hasAttachments?: boolean;
 }
-
-const PHASE_HINTS = {
-  screen: "Screen share — coming soon",
-};
 
 const ARIA_LABELS = {
   camera: "Camera",
@@ -50,6 +48,7 @@ export function InputBar({
   const [dragOver, setDragOver] = useState(false);
   const dragDepth = useRef(0);
   const openCamera = useCameraStore((s) => s.open);
+  const openScreenShare = useScreenShareStore((s) => s.open);
 
   useEffect(() => {
     if (autoFocus) textareaRef.current?.focus();
@@ -66,13 +65,6 @@ export function InputBar({
       if (canSend) onSend();
     }
   };
-
-  const placeholderHints: Array<{
-    key: keyof typeof PHASE_HINTS;
-    icon: typeof Mic;
-  }> = [
-    { key: "screen", icon: Monitor },
-  ];
 
   const handleDrop = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -145,23 +137,21 @@ export function InputBar({
               </TooltipTrigger>
               <TooltipContent side="top">Camera (Snap or Live Vision)</TooltipContent>
             </Tooltip>
-            {placeholderHints.map(({ key, icon: Icon }) => (
-              <Tooltip key={key}>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 rounded-lg text-muted-foreground hover-elevate active-elevate-2"
-                    aria-label={ARIA_LABELS[key]}
-                    onClick={() => toast.info(PHASE_HINTS[key])}
-                    data-testid={`button-action-${key}`}
-                  >
-                    <Icon className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="top">{PHASE_HINTS[key]}</TooltipContent>
-              </Tooltip>
-            ))}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 rounded-lg text-muted-foreground hover-elevate active-elevate-2"
+                  aria-label={ARIA_LABELS.screen}
+                  onClick={() => openScreenShare()}
+                  data-testid="button-action-screen"
+                >
+                  <Monitor className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top">Screen share (Ask or Proactive)</TooltipContent>
+            </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -264,6 +254,7 @@ export function InputBar({
           else toast.error("Attachment system not ready.");
         }}
       />
+      <ScreenShareOverlay />
     </div>
   );
 }

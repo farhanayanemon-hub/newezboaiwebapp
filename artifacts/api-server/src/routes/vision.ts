@@ -42,6 +42,18 @@ const SNAP_SYSTEM_PROMPT =
   "You are looking at a single photo the user just took. Answer their question about it concisely. " +
   "If the user did not ask anything specific, briefly describe the photo. Reply in Bangla unless the user used English.";
 
+const SCREEN_ASK_SYSTEM_PROMPT =
+  "You are looking at a screenshot of the user's screen. Answer their question about what's on screen, " +
+  "concisely and helpfully. If they reference 'this', 'this error', 'this code', etc., they mean what's visible. " +
+  "Reply in Bangla unless the user used English.";
+
+const SCREEN_PROACTIVE_SYSTEM_PROMPT =
+  "You are silently watching the user's screen. ONLY speak up if you see something the user clearly needs help with: " +
+  "code errors, typos, broken Excel/Word formulas, misspelled names, obvious mistakes. " +
+  "If you do speak up, give one concise Bangla suggestion (1–2 sentences). " +
+  "If nothing on screen warrants a comment right now, reply with EXACTLY: [no action] " +
+  "Do not greet, do not narrate, do not describe normal activity. Stay quiet by default.";
+
 // ---- Tiny IP-keyed sliding-window rate limiter (vision is expensive). ------
 const RATE_WINDOW_MS = 60_000;
 const RATE_MAX = 30; // 30 frames / minute / IP — generous for 4-sec live mode
@@ -125,8 +137,13 @@ router.post(
 
     const question =
       typeof req.body?.question === "string" ? req.body.question.trim() : "";
-    const mode: "snap" | "live" =
-      req.body?.mode === "live" ? "live" : "snap";
+    const rawMode = typeof req.body?.mode === "string" ? req.body.mode : "snap";
+    const mode: "snap" | "live" | "screen-ask" | "screen-proactive" =
+      rawMode === "live" ||
+      rawMode === "screen-ask" ||
+      rawMode === "screen-proactive"
+        ? rawMode
+        : "snap";
     const persistMessages = req.body?.persist !== "false";
     const conversationIdRaw =
       typeof req.body?.conversationId === "string"
@@ -150,9 +167,15 @@ router.post(
           }
           conversationId = existing.id;
         } else {
+          const titleByMode: Record<typeof mode, string> = {
+            snap: "Camera snap",
+            live: "Live camera",
+            "screen-ask": "Screen share",
+            "screen-proactive": "Screen share (assist)",
+          };
           const [row] = await db
             .insert(conversationsTable)
-            .values({ title: mode === "live" ? "Live camera" : "Camera snap" })
+            .values({ title: titleByMode[mode] })
             .returning({ id: conversationsTable.id });
           conversationId = row.id;
         }
@@ -162,20 +185,27 @@ router.post(
       await unlink(file.path).catch(() => undefined);
       const dataUrl = `data:${file.mimetype};base64,${buf.toString("base64")}`;
 
-      const userText =
-        question ||
-        (mode === "live" ? "ki dekhcho?" : "ei chobi te ki dekha jacche?");
+      const fallbackQuestionByMode: Record<typeof mode, string> = {
+        snap: "ei chobi te ki dekha jacche?",
+        live: "ki dekhcho?",
+        "screen-ask": "ei screen e ki ache?",
+        "screen-proactive": "(silent watch — only speak up if user needs help)",
+      };
+      const userText = question || fallbackQuestionByMode[mode];
 
       const userParts: ChatContentPart[] = [
         { type: "text", text: userText },
         { type: "image_url", image_url: { url: dataUrl } },
       ];
 
+      const systemByMode: Record<typeof mode, string> = {
+        snap: SNAP_SYSTEM_PROMPT,
+        live: LIVE_SYSTEM_PROMPT,
+        "screen-ask": SCREEN_ASK_SYSTEM_PROMPT,
+        "screen-proactive": SCREEN_PROACTIVE_SYSTEM_PROMPT,
+      };
       const messages: ChatMessage[] = [
-        {
-          role: "system",
-          content: mode === "live" ? LIVE_SYSTEM_PROMPT : SNAP_SYSTEM_PROMPT,
-        },
+        { role: "system", content: systemByMode[mode] },
         { role: "user", content: userParts },
       ];
 
@@ -210,13 +240,26 @@ router.post(
         },
       });
 
-      // ---- Server-side dedup for live mode ---------------------------------
-      // Skip persistence (and signal "duplicate") if this commentary is too
-      // similar to the most recent assistant message in this conversation.
+      // ---- Proactive-mode suppression: AI may say [no action] when nothing
+      // on screen warrants a comment. Skip persistence + signal suppressed.
+      // Normalise heavily — strip brackets, punctuation, underscores, all
+      // whitespace — so "[no action]", "No action.", "no_action", " NoAction "
+      // all collapse to "noaction".
+      let suppressed = false;
+      if (mode === "screen-proactive") {
+        const norm = fullText
+          .toLowerCase()
+          .replace(/[\s_\-[\](){}.,!?;:'"]+/g, "");
+        if (!norm || norm === "noaction" || norm.startsWith("noaction")) {
+          suppressed = true;
+        }
+      }
+
+      // ---- Server-side dedup for streaming modes (live + proactive). -------
       let assistantMsgId: string | null = null;
       let duplicate = false;
-      if (conversationId) {
-        if (mode === "live") {
+      if (conversationId && !suppressed) {
+        if (mode === "live" || mode === "screen-proactive") {
           const [last] = await db
             .select({ content: messagesTable.content })
             .from(messagesTable)
@@ -234,12 +277,16 @@ router.post(
         }
         if (!duplicate) {
           try {
+            // Tag proactive messages so the chat UI can render them with the
+            // 💡 hint affordance without inspecting content.
+            const content =
+              mode === "screen-proactive" ? `💡 ${fullText}` : fullText;
             const [saved] = await db
               .insert(messagesTable)
               .values({
                 conversationId,
                 role: "assistant",
-                content: fullText,
+                content,
                 provider: out.provider,
                 model: out.model,
               })
@@ -264,6 +311,7 @@ router.post(
         userMessageId: userMsgId,
         assistantMessageId: assistantMsgId,
         duplicate,
+        suppressed,
         provider: out.provider,
         model: out.model,
         latencyMs: out.latencyMs,

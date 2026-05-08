@@ -26,9 +26,20 @@ export async function captureFrame(
   canvas.height = h;
   const ctx = canvas.getContext("2d");
   if (!ctx) return null;
-  ctx.drawImage(video, 0, 0, w, h);
+  try {
+    // DRM-protected video (e.g. Netflix in a screen-share) throws
+    // SecurityError here. Return null so callers degrade gracefully
+    // instead of retry-spamming the AI with broken frames.
+    ctx.drawImage(video, 0, 0, w, h);
+  } catch {
+    return null;
+  }
   return await new Promise<Blob | null>((resolve) => {
-    canvas.toBlob((b) => resolve(b), "image/jpeg", quality);
+    try {
+      canvas.toBlob((b) => resolve(b), "image/jpeg", quality);
+    } catch {
+      resolve(null);
+    }
   });
 }
 
