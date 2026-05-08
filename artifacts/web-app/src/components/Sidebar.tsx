@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Plus, Search, Settings, ShieldCheck } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Plus, Search, Settings, ShieldCheck, Brain } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,15 +17,22 @@ interface SidebarContentProps {
 export function SidebarContent({ onNavigate }: SidebarContentProps) {
   const [location] = useLocation();
   const [search, setSearch] = useState("");
-  const createThread = useChatStore((s) => s.createThread);
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const setActiveConversation = useChatStore((s) => s.setActiveConversation);
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 250);
+    return () => clearTimeout(t);
+  }, [search]);
 
   const navItems = [
+    { href: "/memories", label: "Memories", icon: Brain, testId: "nav-memories" },
     { href: "/settings", label: "Settings", icon: Settings, testId: "nav-settings" },
     { href: "/admin", label: "Admin Panel", icon: ShieldCheck, testId: "nav-admin" },
   ];
 
   const handleNewChat = () => {
-    createThread();
+    setActiveConversation(null);
     onNavigate?.();
   };
 
@@ -62,7 +69,7 @@ export function SidebarContent({ onNavigate }: SidebarContentProps) {
       <Separator className="bg-sidebar-border" />
 
       <ScrollArea className="flex-1 px-3 py-3">
-        <ThreadList searchQuery={search} onThreadSelected={onNavigate} />
+        <ThreadList searchQuery={debouncedSearch} onThreadSelected={onNavigate} />
       </ScrollArea>
 
       <Separator className="bg-sidebar-border" />

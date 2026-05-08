@@ -6,6 +6,7 @@ export interface StreamMessage {
 }
 
 export interface StreamHandlers {
+  onConversation?: (info: { conversationId: string; created: boolean }) => void;
   onChunk?: (delta: string) => void;
   onDone?: (info: {
     provider?: string;
@@ -13,6 +14,7 @@ export interface StreamHandlers {
     latencyMs?: number;
     inputTokens?: number;
     outputTokens?: number;
+    savedMemories?: { key: string; value: string }[];
   }) => void;
   onError?: (message: string) => void;
 }
@@ -21,6 +23,7 @@ export interface StreamOptions {
   messages: StreamMessage[];
   modelOverride?: string;
   taskType?: string;
+  conversationId?: string;
   signal?: AbortSignal;
 }
 
@@ -33,6 +36,7 @@ export async function streamChat(opts: StreamOptions, handlers: StreamHandlers):
       messages: opts.messages,
       modelOverride: opts.modelOverride,
       taskType: opts.taskType,
+      conversationId: opts.conversationId,
     }),
     signal: opts.signal,
   });
@@ -51,7 +55,6 @@ export async function streamChat(opts: StreamOptions, handlers: StreamHandlers):
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
-  let fullText = "";
 
   while (true) {
     const { done, value } = await reader.read();
@@ -68,6 +71,7 @@ export async function streamChat(opts: StreamOptions, handlers: StreamHandlers):
       if (!json) continue;
       try {
         const data = JSON.parse(json) as
+          | { type: "conversation"; conversationId: string; created: boolean }
           | { type: "chunk"; content: string }
           | {
               type: "done";
@@ -75,11 +79,16 @@ export async function streamChat(opts: StreamOptions, handlers: StreamHandlers):
               model?: string;
               latencyMs?: number;
               usage?: { inputTokens?: number; outputTokens?: number };
+              savedMemories?: { key: string; value: string }[];
             }
           | { type: "error"; message: string };
 
-        if (data.type === "chunk") {
-          fullText += data.content;
+        if (data.type === "conversation") {
+          handlers.onConversation?.({
+            conversationId: data.conversationId,
+            created: data.created,
+          });
+        } else if (data.type === "chunk") {
           handlers.onChunk?.(data.content);
         } else if (data.type === "done") {
           handlers.onDone?.({
@@ -88,6 +97,7 @@ export async function streamChat(opts: StreamOptions, handlers: StreamHandlers):
             latencyMs: data.latencyMs,
             inputTokens: data.usage?.inputTokens,
             outputTokens: data.usage?.outputTokens,
+            savedMemories: data.savedMemories,
           });
         } else if (data.type === "error") {
           handlers.onError?.(data.message);
@@ -96,9 +106,5 @@ export async function streamChat(opts: StreamOptions, handlers: StreamHandlers):
         // skip malformed event
       }
     }
-  }
-
-  if (!fullText && !buffer) {
-    // stream ended w/o sending a chunk; ensure error handler fires once
   }
 }

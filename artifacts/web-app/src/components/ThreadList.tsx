@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { MessageSquare, MoreVertical, Pencil, Trash2, Download } from "lucide-react";
+import { useLocation } from "wouter";
+import { MessageSquare, MoreVertical, Pencil, Trash2 } from "lucide-react";
 import {
   startOfDay,
   startOfWeek,
@@ -35,6 +36,12 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useChatStore } from "@/stores/chatStore";
+import {
+  useConversations,
+  useDeleteConversation,
+  useRenameConversation,
+  useSearchConversations,
+} from "@/lib/conversations";
 import type { Thread } from "@/types/chat";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -74,35 +81,41 @@ function groupThreads(threads: Thread[]): GroupedThreads[] {
 }
 
 export function ThreadList({ searchQuery, onThreadSelected }: ThreadListProps) {
-  const threads = useChatStore((s) => s.threads);
-  const messagesByThread = useChatStore((s) => s.messagesByThread);
-  const activeThreadId = useChatStore((s) => s.activeThreadId);
-  const setActiveThread = useChatStore((s) => s.setActiveThread);
-  const deleteThread = useChatStore((s) => s.deleteThread);
-  const renameThread = useChatStore((s) => s.renameThread);
+  const [, setLocation] = useLocation();
+  const activeConversationId = useChatStore((s) => s.activeConversationId);
+  const setActiveConversation = useChatStore((s) => s.setActiveConversation);
+
+  const { data: threads = [], isLoading } = useConversations();
+  const { data: searchResults = [] } = useSearchConversations(searchQuery);
+  const renameMutation = useRenameConversation();
+  const deleteMutation = useDeleteConversation();
 
   const [renamingThread, setRenamingThread] = useState<Thread | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [deletingThread, setDeletingThread] = useState<Thread | null>(null);
 
   const filtered = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
+    const q = searchQuery.trim();
     if (!q) return threads;
-    return threads.filter((t) => {
-      if (t.title.toLowerCase().includes(q)) return true;
-      const messages = messagesByThread[t.id] ?? [];
-      return messages.some((m) => m.content.toLowerCase().includes(q));
-    });
-  }, [threads, messagesByThread, searchQuery]);
+    // Combine: server-side FTS hits (full message search) + local title matches.
+    const matchedIds = new Set(searchResults.map((r) => r.conversationId));
+    const ql = q.toLowerCase();
+    return threads.filter(
+      (t) => matchedIds.has(t.id) || t.title.toLowerCase().includes(ql),
+    );
+  }, [threads, searchResults, searchQuery]);
 
   const grouped = useMemo(() => groupThreads(filtered), [filtered]);
 
-  const getPreview = (threadId: string): string => {
-    const msgs = messagesByThread[threadId] ?? [];
-    const last = msgs[msgs.length - 1];
-    if (!last) return "Empty chat";
-    return last.content.replace(/\s+/g, " ").trim().slice(0, 40);
+  const openThread = (id: string) => {
+    setActiveConversation(id);
+    setLocation(`/?c=${id}`);
+    onThreadSelected?.();
   };
+
+  if (isLoading) {
+    return <p className="px-3 py-6 text-center text-xs text-muted-foreground">Loading...</p>;
+  }
 
   if (threads.length === 0) {
     return (
@@ -134,7 +147,8 @@ export function ThreadList({ searchQuery, onThreadSelected }: ThreadListProps) {
             </p>
             <div className="space-y-0.5">
               {group.threads.map((thread) => {
-                const isActive = thread.id === activeThreadId;
+                const isActive = thread.id === activeConversationId;
+                const preview = thread.preview || "Empty chat";
                 return (
                   <div
                     key={thread.id}
@@ -147,16 +161,13 @@ export function ThreadList({ searchQuery, onThreadSelected }: ThreadListProps) {
                   >
                     <button
                       type="button"
-                      onClick={() => {
-                        setActiveThread(thread.id);
-                        onThreadSelected?.();
-                      }}
+                      onClick={() => openThread(thread.id)}
                       className="flex-1 min-w-0 text-left focus:outline-none"
                       data-testid={`thread-${thread.id}`}
                     >
                       <p className="truncate text-sm font-medium">{thread.title}</p>
                       <p className="truncate text-[11px] text-muted-foreground">
-                        {getPreview(thread.id)}
+                        {preview}
                       </p>
                     </button>
 
@@ -181,12 +192,6 @@ export function ThreadList({ searchQuery, onThreadSelected }: ThreadListProps) {
                         >
                           <Pencil className="mr-2 h-3.5 w-3.5" />
                           Rename
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => toast.info("Export coming soon")}
-                        >
-                          <Download className="mr-2 h-3.5 w-3.5" />
-                          Export
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
@@ -219,9 +224,11 @@ export function ThreadList({ searchQuery, onThreadSelected }: ThreadListProps) {
             autoFocus
             onKeyDown={(e) => {
               if (e.key === "Enter" && renamingThread && renameValue.trim()) {
-                renameThread(renamingThread.id, renameValue);
+                renameMutation.mutate(
+                  { id: renamingThread.id, title: renameValue.trim() },
+                  { onSuccess: () => toast.success("Renamed") },
+                );
                 setRenamingThread(null);
-                toast.success("Renamed");
               }
             }}
             data-testid="input-rename-thread"
@@ -231,12 +238,14 @@ export function ThreadList({ searchQuery, onThreadSelected }: ThreadListProps) {
               Cancel
             </Button>
             <Button
-              disabled={!renameValue.trim()}
+              disabled={!renameValue.trim() || renameMutation.isPending}
               onClick={() => {
                 if (renamingThread && renameValue.trim()) {
-                  renameThread(renamingThread.id, renameValue);
+                  renameMutation.mutate(
+                    { id: renamingThread.id, title: renameValue.trim() },
+                    { onSuccess: () => toast.success("Renamed") },
+                  );
                   setRenamingThread(null);
-                  toast.success("Renamed");
                 }
               }}
               data-testid="button-confirm-rename"
@@ -261,8 +270,16 @@ export function ThreadList({ searchQuery, onThreadSelected }: ThreadListProps) {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => {
                 if (deletingThread) {
-                  deleteThread(deletingThread.id);
-                  toast.success("Chat deleted");
+                  const wasActive = deletingThread.id === activeConversationId;
+                  deleteMutation.mutate(deletingThread.id, {
+                    onSuccess: () => {
+                      toast.success("Chat deleted");
+                      if (wasActive) {
+                        setActiveConversation(null);
+                        setLocation("/");
+                      }
+                    },
+                  });
                   setDeletingThread(null);
                 }
               }}

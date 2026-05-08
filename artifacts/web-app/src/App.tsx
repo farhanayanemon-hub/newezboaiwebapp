@@ -6,6 +6,7 @@ import { ThemeProvider } from "@/lib/theme-provider";
 import ChatPage from "@/pages/Chat";
 import AdminPage from "@/pages/Admin";
 import SettingsPage from "@/pages/Settings";
+import MemoriesPage from "@/pages/Memories";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient({
@@ -24,6 +25,7 @@ function AppRoutes() {
       <Route path="/" component={ChatPage} />
       <Route path="/admin" component={AdminPage} />
       <Route path="/settings" component={SettingsPage} />
+      <Route path="/memories" component={MemoriesPage} />
       <Route component={NotFound} />
     </Switch>
   );

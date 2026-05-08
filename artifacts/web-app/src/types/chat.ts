@@ -34,6 +34,7 @@ export interface Thread {
   title: string;
   createdAt: number;
   updatedAt: number;
+  preview?: string;
 }
 
 export interface ModelOption {
@@ -41,4 +42,20 @@ export interface ModelOption {
   label: string;
   provider: string;
   badge?: string;
+}
+
+export interface Memory {
+  id: string;
+  key: string;
+  value: string;
+  source: "chat" | "manual";
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SearchResult {
+  conversationId: string;
+  title: string;
+  updatedAt: string;
+  snippet: string;
 }

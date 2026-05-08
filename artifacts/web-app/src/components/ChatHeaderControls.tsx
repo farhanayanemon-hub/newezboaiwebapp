@@ -12,13 +12,21 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { useChatStore, useActiveThread } from "@/stores/chatStore";
+import { useChatStore } from "@/stores/chatStore";
+import {
+  useConversations,
+  useRenameConversation,
+} from "@/lib/conversations";
 import { cn } from "@/lib/utils";
 import { apiClient } from "@/lib/api";
+import { toast } from "sonner";
 
 export function ChatTitleSlot() {
-  const activeThread = useActiveThread();
-  const renameThread = useChatStore((s) => s.renameThread);
+  const activeConversationId = useChatStore((s) => s.activeConversationId);
+  const { data: threads = [] } = useConversations();
+  const renameMutation = useRenameConversation();
+  const activeThread = threads.find((t) => t.id === activeConversationId) ?? null;
+
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -36,8 +44,15 @@ export function ChatTitleSlot() {
     setEditing(true);
   };
   const commit = () => {
-    if (activeThread && draft.trim() && draft !== activeThread.title) {
-      renameThread(activeThread.id, draft);
+    if (
+      activeThread &&
+      draft.trim() &&
+      draft.trim() !== activeThread.title
+    ) {
+      renameMutation.mutate(
+        { id: activeThread.id, title: draft.trim() },
+        { onSuccess: () => toast.success("Renamed") },
+      );
     }
     setEditing(false);
   };
