@@ -1,0 +1,104 @@
+EzboAI Phase 11 — Server-side Browser Automation (Playwright AI Agent) ⭐
+What & Why
+The flagship feature: EzboAI's AI controls a real headless Chromium browser running on the server, performing multi-step web tasks for the user. The user says "Daraz এ iPhone 15 এর top 3 দাম দেখাও" → AI plans a sequence of actions (navigate, search, extract) → executes them via Playwright → live screenshots stream to the user's UI in real time. Saved automations can run on a schedule.
+
+This phase uses the web-agent task type from the router (Claude Sonnet by default — best at tool-use).
+
+Done looks like
+Backend service BrowserAgent:
+Spawns headless Chromium per session (configurable: also can run headed for debugging)
+One session = one Playwright browser context
+Sessions auto-terminate after N minutes idle
+Tools exposed to AI (function-calling):
+navigate(url) → page.goto
+click(selectorOrText) → tries CSS selector, falls back to getByText
+type(selector, text) → fills input
+press_key(key) → keyboard key
+screenshot() → returns base64 PNG
+extract(selector) → returns text content or array
+read_page() → returns simplified DOM/text (for AI to "see" the page)
+wait(seconds | for_selector | for_load_state)
+scroll(amount | to_element)
+download(url) → save to object storage, return URL
+solve_captcha() → not implemented; returns "captcha detected, user intervention needed"
+Endpoints:
+POST /api/browser/sessions — create new session, returns sessionId
+DELETE /api/browser/sessions/:sessionId — kill session
+POST /api/browser/sessions/:sessionId/run — body {prompt, conversationId?}. Starts the AI agent loop:
+System prompt: "You are EzboAI's web automation agent. Plan and execute the user's task using browser tools. Be efficient, narrate steps in Bangla."
+AI calls tools; backend executes; results returned to AI; loop continues until AI says "done" or hits a wall
+Each tool call result + screenshot streamed via SSE/WebSocket
+WS /ws/browser/:sessionId — WebSocket: server pushes {type, payload} events: 'plan', 'action', 'screenshot', 'result', 'error', 'done'
+Frontend:
+"🌐 Web Task" button in the input bar (or auto-detected from chat)
+Right-side panel opens (~40% width, draggable separator) showing:
+Live screenshot (refreshes after each action)
+Action log (step-by-step in Bangla: "Daraz এ যাচ্ছি...", "Search করছি 'iPhone 15'...", "Result দেখছি...")
+Pause / Stop / Take Over buttons
+Final result (text + extracted data + downloaded files) appears as a normal AI message in the chat
+Saved automations:
+DB table automations (id, name, description, prompt, schedule [cron nullable], lastRunAt, lastRunStatus, createdAt)
+/automations page: CRUD + "Run now" button
+Scheduled automations run via the same scheduler from Phase 10
+Settings:
+Domain allow-list / block-list (e.g. block bank URLs by default)
+Confirmation required for destructive actions (purchase, send, delete) — AI prompts user via the chat
+Login credentials storage (encrypted, opt-in): user can provide site-specific credentials for AI to use
+Out of scope
+Solving captchas
+Bypassing rate limits or bot detection — when blocked, surface error to user
+Headful browser embedded in the browser via VNC (heavy; could be future work)
+Browser extension that controls the user's local Chrome (separate future task)
+Steps
+Install — playwright in api-server; run pnpm exec playwright install chromium to download the browser.
+System dependencies — Playwright needs system libs; verify they install in the Replit container, otherwise document which Nix packages.
+BrowserAgent service — src/browser/agent.ts:
+Manages Playwright sessions in a Map<sessionId, Browser>
+Idle timeout (15 min) → auto-close
+Tool implementations
+Tool registry — src/browser/tools.ts: each tool has name, description, parameters (zod), execute(session, args). Format for OpenAI/Anthropic tool-use.
+AI agent loop — src/browser/runAgent.ts:
+Build messages with system prompt + user prompt + page snapshot
+Call router with web-agent task and tool definitions
+Receive tool calls; execute each via tools.execute
+Append tool results back to messages
+Loop until AI returns final answer or max steps reached (e.g. 30)
+After each action, broadcast event over WebSocket
+Session endpoints — implement create/delete/run.
+WebSocket server — set up ws library in Express; per-session rooms for streaming events.
+Live preview component — components/BrowserPreviewPanel.tsx:
+Connects to WS for the session
+Renders latest screenshot, scrollable action log, control buttons
+Web Task trigger — when user message starts with /web or includes obvious automation phrasing ("খুঁজে দাও", "browser এ"), automatically trigger the browser flow; otherwise user clicks "🌐 Web Task" button to force it.
+Saved automations —
+DB table + CRUD endpoints
+/automations page (table + add/edit/run/schedule)
+Schedule runs via Phase 10's scheduler
+Allow/block list + confirmation — middleware in tools that checks URL against allow/block list; for destructive actions, the AI must call confirm(action) tool which surfaces a yes/no prompt to user via chat.
+Credential vault (optional) — encrypted site_credentials table; AI tool get_credentials(domain) returns username+password to type into login forms.
+Tests — manual: "go to wikipedia.org and tell me what 'AI' means" → verify browser navigates and returns extract.
+Code review — architect paying attention to security (URL validation, infinite loop prevention, resource limits).
+Mark complete — Phase 12 unblocks.
+Critical constraints / Security
+Validate every URL the AI tries to navigate to (no file://, no chrome://, no internal IPs unless explicitly allowed).
+Limit max steps per agent run to prevent infinite loops (default 30).
+Limit max concurrent browser sessions per server (e.g. 3) — Playwright is heavy.
+Always close browser contexts on session end.
+Strip cookies between sessions unless user explicitly enables persistent profile.
+Site credentials encrypted with same APP_ENCRYPTION_KEY from Phase 3.
+Rate-limit /api/browser/sessions/:id/run per user.
+For destructive actions (anything that involves clicking "Buy", "Send", "Submit"), AI MUST ask user via confirmation tool before proceeding.
+Relevant files
+artifacts/api-server/src/browser/agent.ts (new)
+artifacts/api-server/src/browser/tools.ts (new)
+artifacts/api-server/src/browser/runAgent.ts (new)
+artifacts/api-server/src/routes/browser.ts (new)
+artifacts/api-server/src/ws.ts (new — WebSocket setup)
+artifacts/web-app/src/components/BrowserPreviewPanel.tsx (new)
+artifacts/web-app/src/pages/Automations.tsx (new)
+artifacts/api-server/src/db/schema.ts (add automations, site_credentials)
+package.json — playwright dep
+Dependencies
+EzboAI Phase 10 — Reminders & Web Push
+
+

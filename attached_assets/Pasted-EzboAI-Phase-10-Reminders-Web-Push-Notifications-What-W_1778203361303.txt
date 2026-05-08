@@ -1,0 +1,80 @@
+EzboAI Phase 10 — Reminders & Web Push Notifications
+What & Why
+Users say things like "কাল সকাল ৮টায় ওষুধ খাওয়ার কথা মনে করিয়ে দিও" — the AI parses date/time/message, stores it, and when the time comes, a Web Push notification is delivered to the user's device — even if the EzboAI tab is closed (PWA service worker handles it). Recurring reminders supported (daily, weekly, custom). A reminders page lists/edits/deletes upcoming reminders.
+
+Done looks like
+AI has a set_reminder({message, when, recurring?}) tool/function
+AI parses natural Bangla times: "কাল ৮টা", "প্রতিদিন সকালে", "শুক্রবার দুপুরে", "৩ ঘন্টা পর", "১৫ মিনিট পর"
+DB table reminders already exists from Phase 4 schema; extend if needed:
+id, message, scheduledAt, recurring (text nullable, RFC 5545 RRULE or simple cron), status (pending|sent|cancelled|failed), conversationId nullable, createdAt, lastSentAt
+Server-side scheduler (node-cron running every 30 sec) checks WHERE status='pending' AND scheduledAt <= now():
+Sends Web Push to all subscribed endpoints
+Marks status='sent', sets lastSentAt
+If recurring, computes next scheduledAt and inserts a new row OR updates current
+Web Push setup:
+VAPID keys stored in VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY env vars (generated once)
+Backend web-push library
+DB table push_subscriptions (id, endpoint, keys jsonb, userAgent, createdAt)
+POST /api/push/subscribe — receives PushSubscription JSON, stores
+DELETE /api/push/subscribe — unsubscribe
+Service worker handles push event → self.registration.showNotification(title, options)
+Frontend:
+Settings: "Enable notifications" toggle → asks browser permission → subscribes
+Reminders page (/reminders):
+Upcoming list (sorted by scheduledAt)
+Sent / past list
+Add manually (text + datetime picker + recurring picker)
+Edit, snooze (15 min / 1 hr / 1 day), delete, mark done
+In chat, when AI sets a reminder via tool, render a styled card showing "🔔 Reminder set: at
+API:
+GET /api/reminders — list
+POST /api/reminders — manual create
+PATCH /api/reminders/:id — edit/snooze/cancel
+DELETE /api/reminders/:id
+Notification click → opens EzboAI to the relevant conversation (if conversationId set)
+Notification options: title "EzboAI · Reminder", body = message, icon = EzboAI logo, tag = reminder ID (so duplicate suppress), requireInteraction: true for important ones
+Out of scope
+SMS/email reminder delivery (push only)
+Calendar sync (Google Calendar, etc.) — could be a future task
+Location-based reminders ("when I get home")
+Steps
+Generate VAPID keys — npx web-push generate-vapid-keys. Use environment-secrets skill to store both as env vars.
+Install deps — web-push, node-cron, rrule (for recurring).
+DB schema — confirm/extend reminders, add push_subscriptions. Push migration.
+Push subscribe endpoints — implement subscribe/unsubscribe routes.
+Service worker — extend the PWA service worker (from Phase 1) to handle push events:
+self.addEventListener('push', e => {
+  const data = e.data.json();
+  e.waitUntil(self.registration.showNotification(data.title, data.options));
+});
+self.addEventListener('notificationclick', e => { ... open URL ... });
+
+Reminders CRUD endpoints — implement.
+Scheduler — node-cron job every 30 sec; processes due reminders:
+For each due, fetch all subscriptions, send push to each
+Handle stale subscriptions (410 Gone → delete)
+Update reminder status; recurring → schedule next
+AI tool — register set_reminder as a function the chat AI can call. When called, parse when (use AI's own date understanding or chrono-node as fallback), insert reminder, return ack.
+Frontend NL parsing fallback — if AI tool wasn't used but message obviously contains a reminder request, offer a one-click "Set this as a reminder?" button.
+Reminders page — full CRUD UI with date/time picker (react-day-picker or shadcn Calendar) and recurring picker (RRULE preset options).
+Notification permission flow — clear UX explaining why permission is needed (Bangla copy).
+Tests — set a reminder for 30 sec from now → verify notification fires; recurring daily → verify next scheduled correctly.
+Code review — architect.
+Mark complete — Phase 11 unblocks.
+Critical constraints
+Push subscriptions go stale; handle 404/410 by removing them.
+Don't trigger reminders multiple times — atomic update with status='sent'.
+Time zones: store all scheduledAt in UTC; user enters in their local TZ; show in their local TZ. Bangladesh Standard Time = UTC+6.
+AI parsing must be careful: "কাল ৮টা" means "tomorrow 8 AM" in Bangla context — in the system prompt for the tool, instruct accordingly.
+VAPID keys must NEVER be committed; only env vars.
+Relevant files
+artifacts/api-server/src/routes/reminders.ts (new)
+artifacts/api-server/src/routes/push.ts (new)
+artifacts/api-server/src/services/scheduler.ts (new)
+artifacts/api-server/src/db/schema.ts (extend)
+artifacts/web-app/public/sw.js or vite-plugin-pwa config (extend)
+artifacts/web-app/src/pages/Reminders.tsx (new)
+.local/skills/environment-secrets/SKILL.md
+Dependencies
+EzboAI Phase 9 — Screen Share
+

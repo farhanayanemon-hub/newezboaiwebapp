@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
-import { Volume2, VolumeX, ChevronDown, Check, Sparkles } from "lucide-react";
+import { Volume2, VolumeX, ChevronDown, Check, Sparkles, Square } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +13,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useChatStore } from "@/stores/chatStore";
+import { useVoiceStore } from "@/stores/voiceStore";
+import { stopActiveSpeech } from "@/lib/speech/speechQueue";
 import {
   useConversations,
   useRenameConversation,
@@ -112,6 +114,14 @@ export function ChatHeaderRight() {
   const setSelectedModel = useChatStore((s) => s.setSelectedModel);
   const voiceEnabled = useChatStore((s) => s.voiceOutputEnabled);
   const toggleVoice = useChatStore((s) => s.toggleVoiceOutput);
+  const isSpeaking = useVoiceStore((s) => s.isSpeaking);
+  const setAutoSpeak = useVoiceStore((s) => s.setAutoSpeak);
+  const handleToggleVoice = () => {
+    toggleVoice();
+    // Mirror the UI toggle into the voice prefs so settings stay coherent.
+    setAutoSpeak(!voiceEnabled);
+    if (voiceEnabled) stopActiveSpeech();
+  };
   const [models, setModels] = useState<AvailableModel[]>([]);
   const [loaded, setLoaded] = useState(false);
 
@@ -218,13 +228,30 @@ export function ChatHeaderRight() {
         </DropdownMenuContent>
       </DropdownMenu>
 
+      {isSpeaking && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-destructive hover-elevate active-elevate-2"
+              onClick={() => stopActiveSpeech()}
+              aria-label="Stop speaking"
+              data-testid="button-stop-speaking"
+            >
+              <Square className="h-[1.05rem] w-[1.05rem] fill-current" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">Stop speaking</TooltipContent>
+        </Tooltip>
+      )}
       <Tooltip>
         <TooltipTrigger asChild>
           <Button
             variant="ghost"
             size="icon"
             className={cn("hover-elevate active-elevate-2", voiceEnabled && "text-primary")}
-            onClick={toggleVoice}
+            onClick={handleToggleVoice}
             aria-label={voiceEnabled ? "Voice output off" : "Voice output on"}
             data-testid="button-voice-toggle"
           >

@@ -1,0 +1,115 @@
+EzboAI Phase 12 — Polish + Deploy to ezboai.com
+What & Why
+Final polish pass: replace all placeholders with the finalized branding, smooth out every rough edge, write the onboarding flow, optimize performance, ensure accessibility, do a full end-to-end smoke test, then deploy to Replit Deployments and connect the user's custom domain ezboai.com.
+
+Done looks like
+Visual / branding pass:
+Final EzboAI logo (use media-generation skill or accept user-provided asset) in SVG and PNG variants
+Full favicon set (16, 32, 48, 180, 192, 512)
+PWA manifest icons replaced
+Open Graph image (1200×630) for social sharing
+Brand color finalized; consistently applied
+All copy proofread (Bangla phrasing natural, no awkward AI-translated text)
+Replace any "Phase X coming soon" placeholders with real functionality
+Onboarding modal (first visit):
+Welcome to EzboAI
+Quick 3-step tour: "Chat with AI in Bangla", "Voice + Camera + File support", "Set up your AI keys in /admin"
+"Enable notifications?" prompt
+"Add to Home Screen" prompt (for mobile/PWA)
+Skip / Get Started buttons
+Loading & error states everywhere:
+Skeletons for sidebar, message list, files, reminders, automations
+Friendly Bangla error messages (not raw stack traces)
+Error boundary catches React crashes; shows reload button
+Toast notifications (sonner) for transient errors and success
+Performance:
+Route-based code splitting (each page lazy-loaded)
+Image lazy loading
+Service worker caching strategy (network-first for API, cache-first for assets)
+Bundle analysis run; remove unused deps
+Lighthouse score > 90 on mobile
+Accessibility:
+All interactive elements keyboard-navigable
+Focus rings visible
+ARIA labels on all icon-only buttons
+Color contrast meets WCAG AA in both themes
+SEO basics:
+Final <title>, meta description (Bangla + English)
+robots.txt allowing crawl
+Sitemap (single page, but include)
+JSON-LD WebSite and SoftwareApplication
+Settings finalized:
+All toggles persist correctly
+Reset-to-defaults button per section
+Export/import settings JSON
+Documentation:
+replit.md updated with final overview, architecture diagram (text), deployment instructions
+In-app Help page with FAQ in Bangla
+Deployment:
+Read deployment skill
+Deploy via Replit Deployments (Reserved VM recommended for backend persistence — Playwright + scheduler)
+Production URL works
+Connect custom domain ezboai.com:
+Add domain in Replit deployment settings
+User adds DNS records (A or CNAME — instructions provided to user)
+Verify SSL provisioned and renewing
+Production smoke test: chat works, voice works, file upload works, reminder fires, browser automation runs end-to-end
+Post-deploy checks:
+Production logs clean (use fetch_deployment_logs)
+Database migrations applied to prod
+VAPID keys + APP_ENCRYPTION_KEY set in prod env
+Admin password changed from any default
+Out of scope
+Multi-user accounts (single-admin instance for v1; future task)
+Mobile app (separate future task)
+Windows desktop app (separate future task)
+Internationalization beyond Bangla + English
+Steps
+Branding assets — final logo via media-generation skill or user-supplied; place in artifacts/web-app/public/. Generate favicons via online tool or sharp script.
+Replace placeholders — search codebase for "TODO", "Coming soon", "Phase X", "placeholder" — handle each.
+Onboarding modal — components/OnboardingModal.tsx; show on first visit (localStorage flag).
+Loading/error pass — every page: add Suspense skeletons + error boundaries.
+Bangla copy proofread — go through every UI string; ensure natural phrasing.
+Performance audit —
+Run vite build --mode production; check bundle size
+Add React.lazy for heavy pages (Admin, Automations, Files)
+Compress images, use AVIF/WebP where possible
+Run Lighthouse in DevTools; address top suggestions
+Accessibility audit — keyboard-test every flow; run axe DevTools; fix violations.
+SEO — meta tags, robots.txt, sitemap, JSON-LD.
+Help page — pages/Help.tsx with FAQ, troubleshooting, link to GitHub/contact.
+Update replit.md — final state.
+Pre-deploy checklist:
+All env vars set (DATABASE_URL, ADMIN_PASSWORD, APP_ENCRYPTION_KEY, SESSION_SECRET, VAPID keys)
+At least one provider key added in admin (so chat works for testing)
+Routing rules sane defaults
+DB migrations applied
+Deploy — read deployment skill, choose Reserved VM (needed for: long-running scheduler, Playwright, websockets), set env vars in deployment settings.
+Custom domain —
+In Replit deployment settings → Add domain → ezboai.com
+Replit shows DNS records (A or CNAME) needed
+User adds them at their registrar (provide step-by-step instructions in Bangla in chat)
+Wait for verification + SSL
+Production smoke test — manually walk through every feature on ezboai.com; fix any production-only issues.
+Monitoring — set up basic uptime monitoring (e.g. Replit's built-in or external like UptimeRobot).
+Hand off to user — confirm deployment is live, give admin password reminder, link to admin panel, suggest first AI keys to add.
+Suggest deploy — call suggest_deploy if not already deployed.
+Critical constraints
+Reserved VM, NOT Autoscale — Autoscale would kill long-running browser sessions and the cron scheduler.
+All secrets must be set in deployment env, not just dev env.
+Custom domain DNS propagation can take up to 48 hrs — set expectations.
+Database migrations: ensure prod DB schema matches by running drizzle-kit push against prod.
+Don't lose user's API keys during deploy: the encrypted keys live in prod DB, so make sure dev → prod doesn't reset DB.
+Relevant files
+All files across all phases
+replit.md (final update)
+artifacts/web-app/public/ (final assets)
+artifacts/web-app/src/pages/Help.tsx (new)
+artifacts/web-app/src/components/OnboardingModal.tsx (new)
+.local/skills/deployment/SKILL.md
+.local/skills/media-generation/SKILL.md
+Dependencies
+EzboAI Phase 11 — Browser Automation (Playwright)
+
+
+

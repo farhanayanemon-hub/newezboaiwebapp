@@ -27,6 +27,8 @@ import {
 } from "@/lib/conversations";
 import { streamChat } from "@/lib/streamChat";
 import { apiClient } from "@/lib/api";
+import { resetActiveSpeechQueue, stopActiveSpeech } from "@/lib/speech/speechQueue";
+import { useContinuousListen } from "@/lib/speech/useContinuousListen";
 import {
   fillTemplate,
   recordQuickActionUse,
@@ -70,6 +72,7 @@ export default function ChatPage() {
   const selectedModelId = useChatStore((s) => s.selectedModelId);
   const pendingAttachments = useChatStore((s) => s.pendingAttachments);
   const clearPendingAttachments = useChatStore((s) => s.clearPendingAttachments);
+  const voiceOutputEnabled = useChatStore((s) => s.voiceOutputEnabled);
 
   const [pending, setPending] = useState<PendingAction | null>(null);
 
@@ -203,6 +206,9 @@ export default function ChatPage() {
     abortControllers.current.set(optimisticConvId, ctrl);
     markStreaming(optimisticConvId, true);
 
+    // Fresh speech queue for this assistant turn. Cancel any prior speech.
+    const speech = voiceOutputEnabled ? resetActiveSpeechQueue() : null;
+
     let resolvedConvId = activeConversationId;
 
     const history = (
@@ -255,8 +261,10 @@ export default function ChatPage() {
             const cid = resolvedConvId;
             if (!cid) return;
             conversationCache.appendDelta(qc, cid, assistantMessage.id, delta);
+            speech?.feed(delta);
           },
           onDone: (info) => {
+            speech?.flush();
             const cid = resolvedConvId;
             if (!cid) return;
             conversationCache.patchMessage(qc, cid, assistantMessage.id, {
@@ -334,7 +342,16 @@ export default function ChatPage() {
       abortControllers.current.delete(activeConversationId);
     }
     markStreaming(activeConversationId, false);
+    stopActiveSpeech();
   };
+
+  // Continuous-listen mode: when enabled, idle mic listens passively; on a
+  // recognized utterance (optionally past the wake-phrase) we run the stream.
+  useContinuousListen((text) => {
+    if (!text.trim()) return;
+    if (isActiveStreaming) return;
+    void runStream(text);
+  });
 
   const resolveQuickActionInput = (): string | null => {
     if (typeof window !== "undefined") {

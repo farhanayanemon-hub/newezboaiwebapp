@@ -7,3 +7,4 @@ export * from "./messages";
 export * from "./memories";
 export * from "./attachments";
 export * from "./quickActions";
+export * from "./ttsCache";

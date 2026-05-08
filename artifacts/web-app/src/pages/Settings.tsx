@@ -1,10 +1,11 @@
-import { Settings as SettingsIcon, Sun, Moon, Monitor, Bell, User, Zap } from "lucide-react";
+import { Settings as SettingsIcon, Sun, Moon, Monitor, Bell, User, Zap, Mic } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { AppShell } from "@/components/AppShell";
 import { useTheme } from "@/lib/theme-provider";
 import { QuickActionsManager } from "@/components/QuickActionsManager";
+import { VoiceSettings } from "@/components/VoiceSettings";
 
 export default function SettingsPage() {
   const { theme, setTheme } = useTheme();
@@ -53,6 +54,25 @@ export default function SettingsPage() {
                   );
                 })}
               </div>
+            </CardContent>
+          </Card>
+
+          <Separator />
+
+          <Card data-testid="card-voice-settings">
+            <CardHeader>
+              <div className="flex items-start gap-3">
+                <Mic className="mt-0.5 h-5 w-5 text-primary" />
+                <div className="flex-1">
+                  <CardTitle className="text-base">Voice</CardTitle>
+                  <CardDescription>
+                    Speech-to-text, text-to-speech, and hands-free settings
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <VoiceSettings />
             </CardContent>
           </Card>
 

@@ -1,0 +1,66 @@
+EzboAI Phase 7 — Voice (Bangla STT + TTS)
+What & Why
+Hands-free Bangla conversation with EzboAI. User speaks into the mic, browser converts speech to text (STT), the chat is sent to AI, and the AI's reply is read aloud (TTS) in Bangla. Includes a continuous-listen mode where the user can just talk and the AI responds without pressing buttons. Cloud STT/TTS via the AI router is offered as an opt-in for higher-quality Bangla voice (OpenAI Whisper for STT, OpenAI TTS or ElevenLabs via Replicate for TTS).
+
+Done looks like
+🎤 Mic button has three behaviors:
+Tap — start one-shot recording, auto-send on silence detection (~2 sec)
+Long-press — push-to-talk (release to send)
+Toggle Continuous Listen (in settings) — sleep-state listens, wakes on user speech, auto-sends
+Browser STT (window.SpeechRecognition) primary path, language bn-BD with English fallback
+Live transcription appears in the input box as user speaks
+Visual feedback: pulsing red dot + waveform animation while recording
+Stop recording button replaces send button while active
+🔊 TTS toggle in top bar; when on, AI replies are spoken aloud in Bangla as they stream
+Settings page voice section:
+STT engine: Browser (free) / Cloud Whisper (uses provider keys)
+STT language preference (with auto-detect)
+TTS engine: Browser (free) / Cloud OpenAI TTS / ElevenLabs (via Replicate)
+TTS voice picker (lists available voices for selected engine)
+TTS speed slider (0.7x – 1.5x)
+Auto-speak on/off
+Continuous listen on/off
+Wake-phrase (text-based filter for continuous mode, e.g. user must say "Ezbo" before AI responds)
+Stop-speaking button while AI is talking
+Cloud STT route: POST /api/voice/stt — accepts audio blob, routes to audio-stt, returns transcript
+Cloud TTS route: POST /api/voice/tts — accepts {text, voice, speed}, routes to audio-tts, returns audio blob (or streams audio chunks)
+Edge case handling: browser STT not supported → falls back to cloud STT; no AI provider configured for cloud → falls back to browser; both unavailable → friendly Bangla error
+Out of scope
+Real wake-word (e.g. "Hey EzboAI") — would need a native mobile app or desktop app (deferred to future tasks)
+Speaker diarization (multi-speaker recognition)
+Voice cloning
+Steps
+Web Speech API wrapper — lib/speech/sttBrowser.ts exposes start(), stop(), onTranscript, onSilence, onError. Handle browser quirks (Safari support, permission states).
+Browser TTS wrapper — lib/speech/ttsBrowser.ts: speak(text, opts), cancel(), listVoices() (filters Bangla voices).
+Cloud STT endpoint — POST /api/voice/stt — accepts multipart audio (or base64 in body); routes to audio-stt task; returns {transcript, language}.
+Cloud TTS endpoint — POST /api/voice/tts — accepts {text, voice, speed}; routes to audio-tts; streams audio bytes back. Cache same (text, voice) results in tts_cache table (id, hash, audioUrl).
+MicButton component — wraps STT engine selection; tap / long-press / continuous logic; emits final transcript to be inserted into input or sent directly.
+Audio visualizer — small waveform (Web Audio API analyzer), shows during recording.
+Speech queue for TTS — speak AI replies in order; if user starts recording, pause TTS.
+Continuous listen mode —
+VAD (Voice Activity Detection) using Web Audio + a simple threshold; or use vad-web package
+On silence > N sec after speech, auto-send
+On wake-phrase match, route to AI; otherwise discard transcript
+Settings UI — voice section with engine pickers and toggles; persist to backend or localStorage.
+Hook into chat — when TTS is on, subscribe to streaming AI message tokens; speak sentence-by-sentence (split on । and .); when user sends a new message, cancel current speech.
+Tests — manual + automated e2e where possible (mocked STT). Verify continuous mode doesn't loop on its own TTS (mute mic during AI speech).
+Code review — architect.
+Mark complete — Phase 8 unblocks.
+Critical constraints
+Continuous listen MUST stop the mic while AI is speaking — otherwise it picks up its own TTS and loops.
+Browser STT is unreliable in many browsers — always offer cloud fallback.
+Cache TTS aggressively (same text + voice = same audio) to avoid burning provider credits.
+Respect microphone permission state; show clear UI when denied.
+Tab background: STT pauses (browser limitation) — show a hint.
+Relevant files
+artifacts/web-app/src/lib/speech/sttBrowser.ts (new)
+artifacts/web-app/src/lib/speech/sttCloud.ts (new)
+artifacts/web-app/src/lib/speech/ttsBrowser.ts (new)
+artifacts/web-app/src/lib/speech/ttsCloud.ts (new)
+artifacts/web-app/src/components/MicButton.tsx (replaces Phase 2 placeholder)
+artifacts/web-app/src/components/AudioVisualizer.tsx (new)
+artifacts/api-server/src/routes/voice.ts (new)
+artifacts/api-server/src/db/schema.ts (add tts_cache)
+artifacts/web-app/src/pages/Settings.tsx (extend)
+Dependencies
+EzboAI Phase 6 — File Handling

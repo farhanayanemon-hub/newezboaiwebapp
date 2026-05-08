@@ -43,6 +43,17 @@ export interface ProviderModel {
   pricingOutputPerMillion?: number;
 }
 
+export interface SttResult {
+  transcript: string;
+  language?: string;
+  durationSec?: number;
+}
+
+export interface TtsResult {
+  audio: Buffer;
+  mimeType: string;
+}
+
 export interface AIProvider {
   slug: string;
   testConnection(apiKey: string): Promise<TestResult>;
@@ -54,6 +65,25 @@ export interface AIProvider {
     onChunk: (c: ChatChunk) => void;
     signal?: AbortSignal;
   }): Promise<ChatStreamResult>;
+  /** Optional. Speech-to-text (Whisper-style). */
+  transcribeAudio?(args: {
+    apiKey: string;
+    model: string;
+    audio: Buffer;
+    mimeType?: string;
+    filename?: string;
+    language?: string;
+    signal?: AbortSignal;
+  }): Promise<SttResult>;
+  /** Optional. Text-to-speech. Returns the encoded audio bytes (e.g. mp3). */
+  synthesizeSpeech?(args: {
+    apiKey: string;
+    model: string;
+    text: string;
+    voice?: string;
+    speed?: number;
+    signal?: AbortSignal;
+  }): Promise<TtsResult>;
 }
 
 /** Helper: flatten multimodal content to a plain string for non-vision providers. */

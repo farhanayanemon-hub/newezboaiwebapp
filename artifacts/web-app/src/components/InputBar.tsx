@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState, type DragEvent, type KeyboardEvent } from "react";
 import TextareaAutosize from "react-textarea-autosize";
-import { Mic, Camera, Monitor, Paperclip, Send, StopCircle } from "lucide-react";
+import { Camera, Monitor, Paperclip, Send, StopCircle, Mic } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { MicButton } from "@/components/MicButton";
 
 interface InputBarProps {
   value: string;
@@ -21,13 +22,11 @@ interface InputBarProps {
 }
 
 const PHASE_HINTS = {
-  mic: "Voice input — coming soon",
   camera: "Camera — coming soon",
   screen: "Screen share — coming soon",
 };
 
 const ARIA_LABELS = {
-  mic: "Voice input",
   camera: "Camera",
   screen: "Screen share",
   file: "Attach file",
@@ -70,7 +69,6 @@ export function InputBar({
     key: keyof typeof PHASE_HINTS;
     icon: typeof Mic;
   }> = [
-    { key: "mic", icon: Mic },
     { key: "camera", icon: Camera },
     { key: "screen", icon: Monitor },
   ];
@@ -120,6 +118,17 @@ export function InputBar({
           )}
         >
           <div className="flex items-center gap-0.5 pb-0.5 pl-0.5">
+            <MicButton
+              disabled={disabled}
+              onInterim={(text) => onChange(text)}
+              onFinal={(text) => onChange(text)}
+              onAutoSend={() => {
+                // Slight delay so React commits the final value before send checks it.
+                setTimeout(() => {
+                  if (canSend || trimmed.length === 0) onSend();
+                }, 50);
+              }}
+            />
             {placeholderHints.map(({ key, icon: Icon }) => (
               <Tooltip key={key}>
                 <TooltipTrigger asChild>

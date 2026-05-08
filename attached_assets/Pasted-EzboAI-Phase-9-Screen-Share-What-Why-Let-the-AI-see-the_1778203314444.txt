@@ -1,0 +1,49 @@
+EzboAI Phase 9 — Screen Share
+What & Why
+Let the AI see the user's screen in real time and answer questions about it. Uses browser getDisplayMedia() API. Two modes: Ask (user actively asks questions about what's on screen) and Proactive (AI offers tips/suggestions when it spots issues — typos, errors, formula mistakes).
+
+Use cases: live coding help, Excel/Word formula assistance, debugging an error message, getting tutorials on whatever app the user is in.
+
+Done looks like
+🖥️ Screen Share button (from Phase 2) opens a modal that calls getDisplayMedia({video: true})
+Browser native picker lets user choose: Entire Screen / Window / Browser Tab
+Live thumbnail of shared screen in a corner of the chat, dismissible / draggable
+Mode toggle:
+Ask mode: every 5 seconds, frame captured but NOT sent to AI unless user asks a question; when user asks, the latest frame is included
+Proactive mode: every 6-8 seconds, frame captured + sent to vision AI with prompt "If you see something the user might want help with (errors, typos, broken formulas), say so briefly in Bangla. Otherwise, respond with [no action]. Only respond when relevant."
+Backend reuses Phase 8's /api/vision/analyze endpoint with a different system-prompt mode flag
+Stop sharing button + auto-stop when browser stream ends (user clicked native "Stop sharing")
+Privacy indicator (shared with Phase 8): red dot showing screen is being shared
+Proactive notifications appear as low-priority messages in the chat with a 💡 icon
+Out of scope
+Recording / saving the screen share
+Annotating the screen
+Multi-monitor smart selection
+Steps
+ScreenShareOverlay component — analogous to Phase 8's CameraOverlay, but uses getDisplayMedia.
+Frame capture & sampling — same approach as Phase 8 (canvas + toBlob).
+Mode toggle — Ask vs Proactive.
+Proactive prompt — system prompt instructs AI to respond [no action] if nothing is worth mentioning; backend filters those out before posting to chat.
+Rate limiting & cost control — Proactive mode sends a frame every 6-8 sec (configurable in settings); show estimated cost-per-minute somewhere.
+Frame diffing — compare consecutive frames; if hash unchanged (user not doing anything), skip the API call.
+Stop handling — listen to stream.addEventListener('inactive') and the track's onended to detect when user stops sharing natively.
+Privacy indicator — extend Phase 8's PrivacyIndicator to show camera + screen states separately.
+Settings — frequency slider, mode default, allow-list / block-list of windows (advanced, optional).
+Tests — manual.
+Code review — architect.
+Mark complete — Phase 10 unblocks.
+Critical constraints
+Stop the screen share track when overlay closes; don't leak ongoing capture.
+Proactive mode is bandwidth + token expensive — show cost estimate; default to Ask mode.
+Some content (DRM-protected video) appears blank — handle gracefully.
+Frame diffing: use a perceptual hash (e.g. dHash) to detect "real" changes vs noise.
+Never share the screen-share frames to anyone other than the configured AI provider.
+Relevant files
+artifacts/web-app/src/components/ScreenShareOverlay.tsx (new)
+artifacts/web-app/src/lib/frameDiff.ts (new — perceptual hash)
+artifacts/api-server/src/routes/vision.ts (extend with proactive mode flag)
+artifacts/web-app/src/components/PrivacyIndicator.tsx (extend)
+Dependencies
+EzboAI Phase 8 — Camera Live Stream
+
+

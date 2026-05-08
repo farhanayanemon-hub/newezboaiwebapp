@@ -1,0 +1,55 @@
+
+ EzboAI Phase 8 — Camera Live Stream
+What & Why
+Let the AI see through the user's camera. Two modes: Snap & Ask (one photo with a question) and Live Vision (continuous frame sampling, AI runs commentary as the world changes). Powered by the vision task type via the Phase 3 router.
+
+Use cases: identify objects, read text (OCR), translate signs, solve math problems shown to camera, describe surroundings, get help with physical tasks.
+
+Done looks like
+📷 Camera button opens the camera UI (previously placeholder from Phase 2)
+Camera permission requested with a friendly Bangla prompt
+Live camera preview visible (overlaid on the chat area, ~40% width on desktop, full-width modal on mobile)
+Front/back camera toggle (mobile)
+Two mode switches:
+Snap & Ask: capture a single frame, attach to next message; user types/speaks a question; on send, image goes to vision AI
+Live Vision: every 4 seconds, frame is captured and sent to vision AI; AI's running commentary appears as a stream of short messages; user can interrupt with a voice/text question that's answered in context of the latest frame
+Capture button (large), zoom slider (if supported), flash toggle (mobile)
+Privacy indicator: red recording dot in top bar while camera is active
+Stop button cleanly releases the camera
+OCR works automatically — vision AI reads Bangla and English text
+Image quality: JPEG at 0.7 quality, max 1280px wide (balance between detail and tokens)
+Out of scope
+Wake-word "Hey EzboAI" while camera is on (no true wake-word in browser; tab must be active)
+Phone camera continuous in background (browser limitation)
+Real-time AR overlays
+Steps
+CameraOverlay component — opens via 📷 button, manages a getUserMedia({video: true}) stream, renders <video> preview with controls.
+Frame capture — <canvas> drawImage(videoEl) then canvas.toBlob('image/jpeg', 0.7) for compression.
+Mode state — mode: 'snap' | 'live' toggle inside the overlay.
+Snap mode — capture button takes a frame, adds to attachedFiles (Phase 6 file system), closes overlay.
+Live mode —
+Setinterval every 4 sec captures a frame, calls /api/vision/live-frame with the image
+Backend routes to vision task; system prompt: "You are watching a live camera feed. In 1-2 short Bangla sentences, describe what you see. If user has asked a question, answer in context of what's visible."
+Response is appended as an assistant message in the chat (rate-limit to avoid spam: only post if description meaningfully changed from last)
+User can also speak/type questions during live mode; they go to the same vision endpoint with the most recent frame
+Backend route — POST /api/vision/analyze (accepts image + optional question + optional history). Routes to vision; returns text reply (streamed if needed).
+De-duplication — track last vision response; skip posting if new response is too similar (Levenshtein distance threshold) — avoids "I see a desk" every 4 sec.
+Privacy indicator — global state cameraActive: boolean; TopBar shows a red dot with "Camera on" tooltip.
+Mobile front/back toggle — getUserMedia({video: {facingMode: 'environment' | 'user'}}).
+Tests — manual; mock getUserMedia for automated.
+Code review — architect.
+Mark complete — Phase 9 unblocks.
+Critical constraints
+Always release camera (stream.getTracks().forEach(t => t.stop())) when overlay closes — leaving it open drains battery and keeps red light on.
+Vision API tokens are EXPENSIVE — sample at 4 sec, not 1 sec; use de-duplication; let user pause Live Vision easily.
+Permission denied → show clear instructions to re-enable in browser settings.
+For mobile portrait, ensure camera preview aspect ratio doesn't break layout.
+Relevant files
+artifacts/web-app/src/components/CameraOverlay.tsx (new)
+artifacts/web-app/src/components/PrivacyIndicator.tsx (new)
+artifacts/api-server/src/routes/vision.ts (new)
+artifacts/web-app/src/components/InputBar.tsx (wire camera button)
+Dependencies
+EzboAI Phase 7 — Voice (Bangla STT + TTS)
+
+

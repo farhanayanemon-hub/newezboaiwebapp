@@ -1,5 +1,12 @@
-import OpenAI from "openai";
-import type { AIProvider, ProviderModel, TestResult, ChatStreamResult } from "./types";
+import OpenAI, { toFile } from "openai";
+import type {
+  AIProvider,
+  ProviderModel,
+  TestResult,
+  ChatStreamResult,
+  SttResult,
+  TtsResult,
+} from "./types";
 
 function client(apiKey: string, baseURL?: string): OpenAI {
   return new OpenAI({ apiKey, baseURL });
@@ -61,6 +68,48 @@ function makeOpenAICompatible(slug: string, baseURL?: string): AIProvider {
       }
 
       return { fullText, usage: { inputTokens, outputTokens } };
+    },
+    async transcribeAudio({ apiKey, model, audio, mimeType, filename, language, signal }): Promise<SttResult> {
+      const c = client(apiKey, baseURL);
+      // Whisper requires a File-like with a name + content type.
+      const ext = (() => {
+        const m = (mimeType ?? "").toLowerCase();
+        if (m.includes("webm")) return "webm";
+        if (m.includes("ogg")) return "ogg";
+        if (m.includes("mp4") || m.includes("m4a")) return "m4a";
+        if (m.includes("wav")) return "wav";
+        if (m.includes("mpeg") || m.includes("mp3")) return "mp3";
+        return "webm";
+      })();
+      const file = await toFile(audio, filename ?? `audio.${ext}`, { type: mimeType });
+      const res = await c.audio.transcriptions.create(
+        {
+          file,
+          model,
+          language: language && language !== "auto" ? language.split("-")[0] : undefined,
+          response_format: "verbose_json",
+        },
+        { signal },
+      );
+      const r = res as unknown as { text: string; language?: string; duration?: number };
+      return { transcript: r.text, language: r.language, durationSec: r.duration };
+    },
+    async synthesizeSpeech({ apiKey, model, text, voice, speed, signal }): Promise<TtsResult> {
+      const c = client(apiKey, baseURL);
+      const res = await c.audio.speech.create(
+        {
+          model,
+          voice: (voice ?? "alloy") as
+            | "alloy" | "ash" | "ballad" | "coral" | "echo" | "fable"
+            | "onyx" | "nova" | "sage" | "shimmer" | "verse",
+          input: text,
+          response_format: "mp3",
+          speed: typeof speed === "number" ? Math.min(4.0, Math.max(0.25, speed)) : undefined,
+        },
+        { signal },
+      );
+      const ab = await res.arrayBuffer();
+      return { audio: Buffer.from(ab), mimeType: "audio/mpeg" };
     },
   };
 }
