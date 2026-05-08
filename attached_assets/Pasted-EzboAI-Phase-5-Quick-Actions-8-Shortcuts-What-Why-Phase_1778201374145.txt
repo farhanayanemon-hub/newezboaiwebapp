@@ -1,0 +1,76 @@
+EzboAI Phase 5 — Quick Actions (8 Shortcuts)
+What & Why
+Phase 2 added the visual quick action chips. Phase 5 wires them up to actually do useful work — each chip applies a tailored prompt to user-supplied content (selected text, last AI reply, or a new input), routes to the appropriate AI task type via the Phase 3 router, and returns a focused result. Includes a Custom action where users save their own templates.
+
+Done looks like
+8 quick actions fully functional:
+⚡ Summarize — input text or last reply → routes to chat-smart → returns 3-5 line Bangla summary
+🌐 Translate — opens language picker (Bangla, English, Hindi, Arabic, Urdu, Spanish, Chinese, custom) → routes to chat-fast → returns translation
+💡 Explain (ELI5) — input → routes to chat-smart with "explain like I'm 5 in Bangla" framing
+✏️ Rewrite — opens tone picker (formal, casual, short, long, professional, friendly) → routes to chat-smart → rewrites
+📝 Code Help — input code → routes to code task type → returns analysis (bugs, improvements, explanation) with code blocks
+🧮 Math Solver — input math problem → routes to chat-smart → step-by-step Bangla solution with LaTeX/markdown
+📧 Email Draft — opens form (to, subject, intent, tone) → routes to chat-smart → drafts a complete email
+🎯 Custom — user manages their own action templates (name, icon, prompt template, default task type)
+Each action handles three input sources, prioritizing in this order:
+Selected text in the input/page
+Last AI assistant message in the current chat
+Prompts the user to type/paste content
+Results are inserted as a new message in the current chat (so they're saved + searchable via Phase 4)
+Custom actions stored in DB table quick_actions (id, name, icon, promptTemplate, taskType, createdAt)
+Settings page has a "Quick Actions" section to manage custom ones (CRUD, drag to reorder)
+Action history tracked: each action records to a quick_action_uses table for "most used" stats
+Out of scope
+File-based actions (Phase 6 handles file uploads)
+Voice-triggered actions (Phase 7 wires voice)
+Vision actions (Phase 8/9)
+Steps
+DB tables — Add quick_actions and quick_action_uses to schema; push migration.
+Action definitions — artifacts/web-app/src/lib/quickActions.ts exports the 8 built-in actions:
+{
+  id, label, icon, taskType, promptTemplate,
+  inputForm?: 'text' | 'languagePicker' | 'tonePicker' | 'emailForm',
+  resultFormat?: 'message' | 'modal'
+}
+
+Prompt templates (Bangla-tuned):
+Summarize: "নিচের text এর ৩-৫ লাইনের সংক্ষিপ্ত সারমর্ম Bangla তে দাও:\n\n{input}"
+Translate: "নিচের text কে {targetLang} ভাষায় translate করো। শুধু translation দাও, ব্যাখ্যা দরকার নেই।\n\n{input}"
+Explain: "নিচের বিষয়টা একদম সহজ ভাষায় (যেন একটা বাচ্চা বুঝে) Bangla তে বুঝিয়ে দাও:\n\n{input}"
+Rewrite: "নিচের text কে {tone} tone এ আবার লেখো:\n\n{input}"
+Code Help: "Analyze this code. Find bugs, suggest improvements, explain in Bangla:\n\n{input}\n"
+Math: "এই অঙ্কটা step by step Bangla তে solve করো:\n\n{input}"
+Email: "Write a {tone} email to {to}, subject: {subject}, intent: {intent}. In {lang}."
+Input form components — LanguagePickerDialog, TonePickerDialog, EmailFormDialog, TextInputDialog. Reusable shadcn dialogs.
+Action handler — executeQuickAction(action, opts):
+Resolve input (selection / last message / prompt user)
+If inputForm, open dialog to gather params
+Build final prompt from template
+Call SSE chat endpoint with this prompt; result streams as a normal assistant message in the current chat
+Increment usage counter
+QuickActionChips refactor — wire each chip to call executeQuickAction. Show loading state on the chip until the result starts streaming.
+Custom actions CRUD —
+API: GET /api/quick-actions, POST, PATCH, DELETE
+Settings UI section: list with drag-reorder (@dnd-kit/sortable), add/edit dialog with fields: name, icon picker (lucide), prompt template (textarea with {input} placeholder docs), task type dropdown
+Custom actions appear in the chip bar after built-in ones
+Slash commands (bonus) — typing /summarize etc in input shows autocomplete from quick actions, hitting Tab applies. Optional but nice UX.
+Tests — e2e: select text in last reply → click Translate → pick English → see translation as new message.
+Code review — architect from code_review skill.
+Mark complete — Phase 6 unblocks.
+Critical constraints
+All Bangla strings should sound natural; have native-quality phrasing.
+Don't pollute the chat with internal prompt boilerplate — show user only the result, not the wrapped prompt.
+Custom action templates must safely escape user-supplied template strings (no prompt-injection risk against the system prompt — wrap user input clearly).
+Map each action to the correct task type so the router uses the best model (Code Help → code, Email/Rewrite → chat-smart, Translate → chat-fast, etc).
+Relevant files
+artifacts/web-app/src/lib/quickActions.ts (new)
+artifacts/web-app/src/components/QuickActionChips.tsx (extend Phase 2)
+artifacts/web-app/src/components/dialogs/*.tsx (new)
+artifacts/web-app/src/pages/Settings.tsx (extend with quick actions section)
+artifacts/api-server/src/routes/quickActions.ts (new)
+artifacts/api-server/src/db/schema.ts (extend)
+Dependencies
+EzboAI Phase 4 — Conversation Memory (DB)
+
+
+

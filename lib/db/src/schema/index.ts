@@ -6,3 +6,4 @@ export * from "./conversations";
 export * from "./messages";
 export * from "./memories";
 export * from "./attachments";
+export * from "./quickActions";

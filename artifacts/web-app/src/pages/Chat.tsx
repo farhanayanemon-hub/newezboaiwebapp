@@ -8,6 +8,12 @@ import { MessageList } from "@/components/MessageList";
 import { InputBar } from "@/components/InputBar";
 import { QuickActionChips } from "@/components/QuickActionChips";
 import { EmptyState } from "@/components/EmptyState";
+import {
+  TextInputDialog,
+  LanguagePickerDialog,
+  TonePickerDialog,
+  EmailFormDialog,
+} from "@/components/dialogs/QuickActionDialogs";
 import { useChatStore } from "@/stores/chatStore";
 import {
   useConversationMessages,
@@ -15,7 +21,18 @@ import {
   conversationKeys,
 } from "@/lib/conversations";
 import { streamChat } from "@/lib/streamChat";
+import {
+  fillTemplate,
+  recordQuickActionUse,
+  type QuickActionDef,
+} from "@/lib/quickActions";
 import type { Message } from "@/types/chat";
+
+interface PendingAction {
+  action: QuickActionDef;
+  /** The user's "input" content if it could be resolved automatically. */
+  input: string | null;
+}
 
 export default function ChatPage() {
   const [input, setInput] = useState("");
@@ -30,6 +47,8 @@ export default function ChatPage() {
   const activeConversationId = useChatStore((s) => s.activeConversationId);
   const setActiveConversation = useChatStore((s) => s.setActiveConversation);
   const selectedModelId = useChatStore((s) => s.selectedModelId);
+
+  const [pending, setPending] = useState<PendingAction | null>(null);
 
   // Sync URL ?c=<id> ↔ active conversation.
   useEffect(() => {
@@ -74,15 +93,18 @@ export default function ChatPage() {
     });
   };
 
-  const handleSend = async () => {
-    const trimmed = input.trim();
+  /**
+   * Core stream runner: sends `prompt` as the next user message and streams
+   * an assistant reply into the React Query cache. Used by both manual
+   * input and quick actions.
+   */
+  const runStream = async (prompt: string, taskType?: string) => {
+    const trimmed = prompt.trim();
     if (!trimmed) return;
 
-    const optimisticConvId =
-      activeConversationId ?? `pending-${nanoid(8)}`;
+    const optimisticConvId = activeConversationId ?? `pending-${nanoid(8)}`;
     if (abortControllers.current.has(optimisticConvId)) return;
 
-    // Optimistic user message.
     const userMessage: Message = {
       id: `local-${nanoid(8)}`,
       threadId: optimisticConvId,
@@ -103,8 +125,6 @@ export default function ChatPage() {
       conversationCache.prependLocalMessage(qc, activeConversationId, assistantMessage);
     }
 
-    setInput("");
-
     const ctrl = new AbortController();
     abortControllers.current.set(optimisticConvId, ctrl);
     markStreaming(optimisticConvId, true);
@@ -117,21 +137,23 @@ export default function ChatPage() {
       ) ?? []
     )
       .filter(
-        (m) => m.id !== assistantMessage.id && m.content.length > 0,
+        (m) =>
+          m.id !== assistantMessage.id &&
+          m.id !== userMessage.id &&
+          m.content.length > 0,
       )
       .map((m) => ({ role: m.role, content: m.content }))
       .filter((m): m is { role: "user" | "assistant"; content: string } =>
         m.role === "user" || m.role === "assistant",
       );
-    if (!activeConversationId) {
-      history.push({ role: "user", content: trimmed });
-    }
+    history.push({ role: "user", content: trimmed });
 
     try {
       await streamChat(
         {
           messages: history,
           modelOverride: selectedModelId ?? undefined,
+          taskType,
           conversationId: activeConversationId ?? undefined,
           signal: ctrl.signal,
         },
@@ -139,7 +161,6 @@ export default function ChatPage() {
           onConversation: ({ conversationId, created }) => {
             resolvedConvId = conversationId;
             if (created || !activeConversationId) {
-              // Move optimistic messages from pending key to real conversation key.
               qc.setQueryData<Message[]>(
                 conversationKeys.detail(conversationId),
                 [
@@ -170,7 +191,6 @@ export default function ChatPage() {
                 outputTokens: info.outputTokens,
               },
             });
-            // Refetch authoritative messages so server-side IDs replace optimistic ones.
             qc.invalidateQueries({ queryKey: conversationKeys.detail(cid) });
             qc.invalidateQueries({ queryKey: conversationKeys.list() });
           },
@@ -180,8 +200,6 @@ export default function ChatPage() {
             conversationCache.patchMessage(qc, cid, assistantMessage.id, {
               meta: { error: msg },
             });
-            // Reconcile with server state — partial assistant output may have
-            // been persisted before the error.
             qc.invalidateQueries({ queryKey: conversationKeys.detail(cid) });
             qc.invalidateQueries({ queryKey: conversationKeys.list() });
           },
@@ -196,8 +214,6 @@ export default function ChatPage() {
           meta: { error: msg },
         });
       }
-      // Whether aborted or errored, reconcile with the server so optimistic
-      // entries are replaced with whatever was actually persisted.
       if (cid) {
         qc.invalidateQueries({ queryKey: conversationKeys.detail(cid) });
         qc.invalidateQueries({ queryKey: conversationKeys.list() });
@@ -212,6 +228,13 @@ export default function ChatPage() {
     }
   };
 
+  const handleSend = async () => {
+    const trimmed = input.trim();
+    if (!trimmed) return;
+    setInput("");
+    await runStream(trimmed);
+  };
+
   const handleStop = () => {
     if (!activeConversationId) return;
     const ctrl = abortControllers.current.get(activeConversationId);
@@ -222,9 +245,54 @@ export default function ChatPage() {
     markStreaming(activeConversationId, false);
   };
 
-  const handleQuickAction = (template: string) => {
-    setInput((prev) => (prev ? `${prev}\n\n${template}` : template));
+  /**
+   * Resolve the input source for a quick action, in order:
+   * 1. Selected text (window.getSelection)
+   * 2. Current value in the input box
+   * 3. Last assistant message in this conversation
+   * Returns null if nothing is found — caller will then prompt for input.
+   */
+  const resolveQuickActionInput = (): string | null => {
+    if (typeof window !== "undefined") {
+      const sel = window.getSelection?.()?.toString().trim();
+      if (sel) return sel;
+    }
+    const fromInput = input.trim();
+    if (fromInput) return fromInput;
+    const lastAssistant = [...messages]
+      .reverse()
+      .find((m) => m.role === "assistant" && m.content.trim().length > 0);
+    if (lastAssistant) return lastAssistant.content.trim();
+    return null;
   };
+
+  const handleQuickAction = (action: QuickActionDef) => {
+    const auto = resolveQuickActionInput();
+    // Custom actions and text-input built-ins always go through the text
+    // dialog if no input was found — but if input IS found, run immediately.
+    if (action.inputForm === "text") {
+      if (auto) {
+        runQuickActionWithVars(action, { input: auto });
+      } else {
+        setPending({ action, input: null });
+      }
+      return;
+    }
+    // Other forms always need extra params, so we open them; auto-input
+    // (if any) is pre-filled.
+    setPending({ action, input: auto });
+  };
+
+  const runQuickActionWithVars = (
+    action: QuickActionDef,
+    vars: Record<string, string>,
+  ) => {
+    const prompt = fillTemplate(action.promptTemplate, vars);
+    recordQuickActionUse(action.id);
+    setInput("");
+    void runStream(prompt, action.taskType);
+  };
+
   const handleExamplePrompt = (template: string) => setInput(template);
 
   const showEmpty = !activeConversationId || messages.length === 0;
@@ -255,6 +323,64 @@ export default function ChatPage() {
         </div>
       ) : (
         <MessageList messages={visibleMessages} isTyping={isActiveStreaming} />
+      )}
+
+      {/* Quick action dialogs */}
+      {pending?.action.inputForm === "text" && (
+        <TextInputDialog
+          open
+          title={pending.action.label}
+          description="Paste or type the text to process"
+          onCancel={() => setPending(null)}
+          onSubmit={(text) => {
+            const action = pending.action;
+            setPending(null);
+            runQuickActionWithVars(action, { input: text });
+          }}
+        />
+      )}
+      {pending?.action.inputForm === "languagePicker" && (
+        <LanguagePickerDialog
+          open
+          initialInput={pending.input ?? ""}
+          needsInput={!pending.input}
+          onCancel={() => setPending(null)}
+          onSubmit={({ targetLang, input: inp }) => {
+            const action = pending.action;
+            setPending(null);
+            runQuickActionWithVars(action, {
+              targetLang,
+              input: inp || (pending.input ?? ""),
+            });
+          }}
+        />
+      )}
+      {pending?.action.inputForm === "tonePicker" && (
+        <TonePickerDialog
+          open
+          initialInput={pending.input ?? ""}
+          needsInput={!pending.input}
+          onCancel={() => setPending(null)}
+          onSubmit={({ tone, input: inp }) => {
+            const action = pending.action;
+            setPending(null);
+            runQuickActionWithVars(action, {
+              tone,
+              input: inp || (pending.input ?? ""),
+            });
+          }}
+        />
+      )}
+      {pending?.action.inputForm === "emailForm" && (
+        <EmailFormDialog
+          open
+          onCancel={() => setPending(null)}
+          onSubmit={(data) => {
+            const action = pending.action;
+            setPending(null);
+            runQuickActionWithVars(action, data);
+          }}
+        />
       )}
     </AppShell>
   );

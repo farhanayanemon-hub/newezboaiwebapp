@@ -1,9 +1,10 @@
-import { Settings as SettingsIcon, Sun, Moon, Monitor, Bell, User } from "lucide-react";
+import { Settings as SettingsIcon, Sun, Moon, Monitor, Bell, User, Zap } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { AppShell } from "@/components/AppShell";
 import { useTheme } from "@/lib/theme-provider";
+import { QuickActionsManager } from "@/components/QuickActionsManager";
 
 export default function SettingsPage() {
   const { theme, setTheme } = useTheme();
@@ -52,6 +53,25 @@ export default function SettingsPage() {
                   );
                 })}
               </div>
+            </CardContent>
+          </Card>
+
+          <Separator />
+
+          <Card data-testid="card-quick-actions">
+            <CardHeader>
+              <div className="flex items-start gap-3">
+                <Zap className="mt-0.5 h-5 w-5 text-primary" />
+                <div className="flex-1">
+                  <CardTitle className="text-base">Quick Actions</CardTitle>
+                  <CardDescription>
+                    Manage your custom one-click prompt templates
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <QuickActionsManager />
             </CardContent>
           </Card>
 
