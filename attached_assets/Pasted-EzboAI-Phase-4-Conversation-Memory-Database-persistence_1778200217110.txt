@@ -1,0 +1,104 @@
+EzboAI Phase 4 — Conversation Memory (Database persistence)
+What & Why
+Replace the localStorage-only chat persistence from Phase 2 with a real PostgreSQL database. All conversations, messages, attachments, and long-term memories are stored in the DB. Users can browse a sidebar of all past chats grouped by date, search across chat history (full-text), and the AI remembers long-term facts across sessions ("আমার নাম রাকিব মনে রাখো" → next month, AI still knows). Auto-titles are generated for new chats from the first AI reply.
+
+This phase makes EzboAI feel like a real, persistent assistant rather than a session-only chatbot.
+
+Done looks like
+DB tables created via Drizzle (added to the schema from Phase 3):
+conversations (id uuid pk, title text, createdAt, updatedAt)
+messages (id uuid pk, conversationId fk, role text, content text, provider text nullable, model text nullable, attachments jsonb default [], createdAt)
+memories (id uuid pk, key text, value text, source text [chat|manual], createdAt, updatedAt) — long-term facts
+attachments (id uuid pk, messageId fk nullable, kind text, url text, mimeType text, sizeBytes int, extractedText text nullable, createdAt) (used by Phase 6 for files)
+Full-text search index: tsvector column on messages.content with GIN index
+API endpoints:
+GET /api/conversations — list all (id, title, updatedAt, lastMessagePreview)
+POST /api/conversations — create new (returns id; title defaults to "New Chat")
+PATCH /api/conversations/:id — rename
+DELETE /api/conversations/:id
+GET /api/conversations/:id/messages — fetch all messages
+POST /api/conversations/:id/messages — append message (the chat stream endpoint also writes here automatically)
+GET /api/conversations/search?q=... — full-text search across messages, returns matching conversations + snippet
+GET /api/memories — list all
+POST /api/memories — {key, value, source} create
+PATCH /api/memories/:id — update
+DELETE /api/memories/:id
+Chat stream endpoint (from Phase 3) updated to:
+Auto-create a conversation if no conversationId provided
+Persist user message before calling AI
+Persist AI reply (with provider+model metadata) when streaming completes
+Update conversations.updatedAt
+On first AI reply in a new conversation, call AI again briefly with task chat-fast to generate a 3-5 word Bangla title; save to conversations.title
+Inject all memories as a "User facts:" section in the system prompt
+Long-term memory:
+AI has a save_memory(key, value) tool/function-call available
+When user says "মনে রাখো ...", AI calls the tool, and a row is added to memories
+System prompt builds: "User facts you should remember:\n- name: রাকিব\n- favorite color: নীল\n..."
+Frontend:
+Sidebar fetches conversations via TanStack Query, replaces localStorage list
+Click a thread → load messages from API
+Rename inline in top bar → calls PATCH endpoint
+Delete from 3-dot menu → confirms → calls DELETE
+Search input in sidebar → calls /api/conversations/search debounced 300ms
+"+ New Chat" creates an empty thread (no DB row until first message — lazy creation OR creates immediately, choose one)
+/memories page: list, add, edit, delete memories with a clean UI
+On refresh, the active conversation reloads from DB (URL contains ?c=<id>)
+Out of scope
+Multi-user accounts (single-admin or single-user instance)
+Per-message edit/regenerate (could be added later)
+Sharing conversations publicly
+Steps
+Schema design — Add the four tables to artifacts/api-server/src/db/schema.ts. Add a tsvector generated column on messages for FTS:
+ALTER TABLE messages ADD COLUMN search_vector tsvector
+  GENERATED ALWAYS AS (to_tsvector('simple', coalesce(content, ''))) STORED;
+CREATE INDEX messages_search_idx ON messages USING GIN (search_vector);
+
+Use simple config for Bangla support (Postgres' default English stemming would mangle Bangla).
+Push migration — pnpm drizzle-kit push to apply.
+Conversation CRUD routes — implement endpoints listed above with zod validation.
+Message CRUD routes — implement; ensure messages always belong to a valid conversation.
+Search endpoint — uses to_tsquery('simple', ...) with prefix matching; returns conversation summaries with highlighted snippet (ts_headline).
+Memory CRUD routes — implement.
+Update chat stream endpoint (from Phase 3):
+Accept optional conversationId in body; if missing, create a new conversation row first
+Insert user message row before calling router
+Buffer streaming chunks; on completion, insert assistant message row with provider and model from the router's last response
+If conversation has no title yet (still "New Chat"), spawn a background router.stream('chat-fast', ...) with a "Generate a 3-5 word Bangla title for this exchange:" prompt; save the result to conversations.title
+System prompt builder — src/ai/prompts.ts:
+Loads all memories
+Builds: "You are EzboAI ... User facts:\n- name: রাকিব\n..."
+save_memory tool — register as a function the chat AI can call. When called, insert into memories with source='chat'. Ack to the user in the reply: "ঠিক আছে, মনে রাখলাম: ..."
+Frontend store refactor — replace localStorage chat store with TanStack Query hooks:
+useConversations() → list
+useConversation(id) → messages
+useCreateConversation(), useDeleteConversation(), useRenameConversation()
+useSendMessage(conversationId) → wraps the SSE call, optimistically adds user message, streams assistant reply
+Sidebar refactor — render from query, group by date using date-fns, search input wired to /search.
+URL routing — /?c=<conversationId> so refresh restores the active chat. Use React Router search params.
+Memories page — pages/Memories.tsx with table view, add/edit dialogs.
+Migration of existing localStorage data — on first load after Phase 4, if localStorage has Phase 2 chats, offer to import them into the DB (one-time migration helper).
+Tests — use the testing skill to write e2e tests:
+Create chat → send message → reload → message still there
+Add memory → start new chat → AI references the memory
+Search finds messages across multiple chats
+Code review — architect from code_review skill on schema, FTS, memory injection.
+Mark complete — Phase 5 unblocks.
+Critical constraints
+Use simple text-search config, NOT english, so Bangla tokens are not destroyed.
+Always ON DELETE CASCADE for messages.conversationId so deleting a chat cleans up.
+Limit injected memories in system prompt to most recent N (e.g. 50) to avoid context bloat; or summarize older memories.
+Use Drizzle relations + types — keep frontend types in sync with backend.
+Optimistic UI updates for sending messages so the chat feels instant.
+Relevant files
+artifacts/api-server/src/db/schema.ts
+artifacts/api-server/src/routes/conversations.ts (new)
+artifacts/api-server/src/routes/memories.ts (new)
+artifacts/api-server/src/routes/chat.ts (extend from Phase 3)
+artifacts/api-server/src/ai/prompts.ts (new)
+artifacts/web-app/src/stores/chatStore.ts (refactor to TanStack Query)
+artifacts/web-app/src/pages/Memories.tsx (new)
+lib/api-spec/openapi.yaml
+Dependencies
+EzboAI Phase 3 — AI Router + Admin Panel + Backend
+
+
