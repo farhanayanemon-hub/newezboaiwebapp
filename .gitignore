@@ -50,3 +50,15 @@ Thumbs.db
 
 # Local uploads (server-side runtime data, not source)
 artifacts/api-server/uploads/
+
+# Playwright browsers (Task #24 cleanup — never commit these)
+.playwright/
+ms-playwright/
+**/chrome-linux/
+**/chrome-linux64/
+**/chrome-headless-shell-linux64/
+
+# Build artifacts and local agent state
+dist/
+.local/
+*.tar.gz
