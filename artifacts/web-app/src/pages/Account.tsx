@@ -1,19 +1,30 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { Loader2, User as UserIcon, Mail, KeyRound } from "lucide-react";
+import { Loader2, User as UserIcon, Mail, KeyRound, Calendar, Briefcase, MessageSquareText } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { Textarea } from "@/components/ui/textarea";
 import { apiClient, ApiError } from "@/lib/api";
 import { useAuth, type AuthUser } from "@/lib/auth";
 import { toast } from "sonner";
 
+function formatDob(value: string | null | undefined): string {
+  if (!value) return "Not set";
+  // Stored as YYYY-MM-DD; render in user's locale without timezone shift.
+  const [y, m, d] = value.split("-").map(Number);
+  if (!y || !m || !d) return value;
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  return dt.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
+}
+
 export default function AccountPage() {
   const { user, loading, refresh } = useAuth();
   const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+  const [profession, setProfession] = useState("");
+  const [instructions, setInstructions] = useState("");
   const [profileSaving, setProfileSaving] = useState(false);
 
   const [currentPassword, setCurrentPassword] = useState("");
@@ -24,7 +35,8 @@ export default function AccountPage() {
   useEffect(() => {
     if (user) {
       setName(user.name);
-      setEmail(user.email);
+      setProfession(user.profession ?? "");
+      setInstructions(user.instructions ?? "");
     }
   }, [user]);
 
@@ -57,12 +69,16 @@ export default function AccountPage() {
     e.preventDefault();
     setProfileSaving(true);
     try {
-      await apiClient.patch<{ user: AuthUser }>("/auth/account", { name, email });
+      await apiClient.patch<{ user: AuthUser }>("/auth/account", {
+        name,
+        profession,
+        instructions,
+      });
       await refresh();
       toast.success("Profile updated");
     } catch (err) {
-      if (err instanceof ApiError && err.status === 409) {
-        toast.error("That email is already in use.");
+      if (err instanceof ApiError) {
+        toast.error(`Failed to save profile (${err.status})`);
       } else {
         toast.error("Failed to save profile");
       }
@@ -105,7 +121,7 @@ export default function AccountPage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><UserIcon className="h-5 w-5" /> Profile</CardTitle>
-            <CardDescription>Update your name and email address.</CardDescription>
+            <CardDescription>Update your name, profession, and personal AI instructions. Email and date of birth are read-only.</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={saveProfile} className="space-y-4">
@@ -119,21 +135,70 @@ export default function AccountPage() {
                   data-testid="input-account-name"
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <div className="relative">
-                  <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="email" className="flex items-center gap-1.5 text-muted-foreground">
+                    <Mail className="h-3.5 w-3.5" /> Email (read-only)
+                  </Label>
                   <Input
                     id="email"
                     type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="pl-9"
-                    required
+                    value={user.email}
+                    readOnly
+                    disabled
+                    className="bg-muted/40"
                     data-testid="input-account-email"
                   />
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="dob" className="flex items-center gap-1.5 text-muted-foreground">
+                    <Calendar className="h-3.5 w-3.5" /> Date of birth (read-only)
+                  </Label>
+                  <Input
+                    id="dob"
+                    type="text"
+                    value={formatDob(user.dateOfBirth)}
+                    readOnly
+                    disabled
+                    className="bg-muted/40"
+                    data-testid="input-account-dob"
+                  />
+                </div>
               </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="profession" className="flex items-center gap-1.5">
+                  <Briefcase className="h-3.5 w-3.5" /> Profession
+                </Label>
+                <Input
+                  id="profession"
+                  value={profession}
+                  onChange={(e) => setProfession(e.target.value)}
+                  maxLength={120}
+                  placeholder="e.g. Software Engineer, Doctor, Student"
+                  data-testid="input-account-profession"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="instructions" className="flex items-center gap-1.5">
+                  <MessageSquareText className="h-3.5 w-3.5" /> Personal AI instructions
+                </Label>
+                <Textarea
+                  id="instructions"
+                  value={instructions}
+                  onChange={(e) => setInstructions(e.target.value)}
+                  maxLength={4000}
+                  rows={5}
+                  placeholder="How would you like Ezbo to talk to you? Tone, language, expertise level, anything Ezbo should always remember..."
+                  data-testid="input-account-instructions"
+                />
+                <p className="text-xs text-muted-foreground">
+                  These instructions are sent with every chat so Ezbo replies the way you prefer.
+                </p>
+              </div>
+
               <Button type="submit" disabled={profileSaving} data-testid="button-save-profile">
                 {profileSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Save changes

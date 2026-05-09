@@ -10,6 +10,7 @@ import {
   Sparkles,
   Users,
   Mail,
+  Mic,
   LayoutDashboard,
 } from "lucide-react";
 import { AdminLogin } from "@/components/admin/AdminLogin";
@@ -24,6 +25,7 @@ import { AccessRulesTab } from "@/components/admin/AccessRulesTab";
 import { EzboTiersTab } from "@/components/admin/EzboTiersTab";
 import { UsersTab } from "@/components/admin/UsersTab";
 import { SmtpTab } from "@/components/admin/SmtpTab";
+import { ElevenLabsTab } from "@/components/admin/ElevenLabsTab";
 import { apiClient } from "@/lib/api";
 
 const NAV_ITEMS: AdminNavItem[] = [
@@ -37,6 +39,7 @@ const NAV_ITEMS: AdminNavItem[] = [
   { id: "credentials", label: "Vault", icon: <Lock className="h-4 w-4" /> },
   { id: "access", label: "Access", icon: <Shield className="h-4 w-4" /> },
   { id: "smtp", label: "SMTP", icon: <Mail className="h-4 w-4" /> },
+  { id: "elevenlabs", label: "ElevenLabs", icon: <Mic className="h-4 w-4" /> },
 ];
 
 const STORAGE_KEY = "ezboai-admin-active-section";
@@ -63,6 +66,8 @@ function renderSection(id: string) {
       return <AccessRulesTab />;
     case "smtp":
       return <SmtpTab />;
+    case "elevenlabs":
+      return <ElevenLabsTab />;
     default:
       return <DashboardTab />;
   }

@@ -1,5 +1,6 @@
 import { CloudSun, FileText, Mail, Lightbulb } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { useAuth } from "@/lib/auth";
 
 const EXAMPLES = [
   {
@@ -29,14 +30,29 @@ interface EmptyStateProps {
 }
 
 export function EmptyState({ onPromptSelect }: EmptyStateProps) {
+  const { user } = useAuth();
+  const isLoggedIn = !!user;
+  const displayName = user?.name?.trim() || "Boss";
+
+  const heading = isLoggedIn ? `Welcome ${displayName}!` : "Hello Boss!";
+  const sub = isLoggedIn
+    ? "Ezbo AI duniyay apnar shagotom. Full access pete ekta plan niye nin — tarporo amra je kono bishoy niye easily discuss korte parbo."
+    : "Please create an account to enjoy all features.";
+
   return (
     <div className="flex h-full items-center justify-center px-4 py-10 sm:py-14">
       <div className="w-full max-w-2xl text-center">
-        <h1 className="bg-gradient-to-br from-foreground via-foreground to-primary bg-clip-text text-3xl font-bold tracking-tight text-transparent sm:text-4xl">
-          EzboAI
+        <h1
+          className="bg-gradient-to-br from-foreground via-foreground to-primary bg-clip-text text-3xl font-bold tracking-tight text-transparent sm:text-4xl"
+          data-testid="text-greeting-heading"
+        >
+          {heading}
         </h1>
-        <p className="mt-3 text-base text-muted-foreground sm:text-lg">
-          Your personal AI assistant
+        <p
+          className="mt-3 text-base text-muted-foreground sm:text-lg"
+          data-testid="text-greeting-sub"
+        >
+          {sub}
         </p>
         <p className="mt-1.5 text-xs text-muted-foreground/70">
           Pick an example below or start typing your own prompt

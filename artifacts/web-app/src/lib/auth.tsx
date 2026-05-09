@@ -7,6 +7,10 @@ export interface AuthUser {
   name: string;
   role: string;
   createdAt: string;
+  emailVerifiedAt?: string | null;
+  dateOfBirth?: string | null;
+  profession?: string;
+  instructions?: string;
 }
 
 interface AuthContextValue {

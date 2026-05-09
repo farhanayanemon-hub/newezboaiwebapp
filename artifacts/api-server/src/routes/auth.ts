@@ -27,11 +27,18 @@ const router: IRouter = Router();
 const emailSchema = z.string().trim().toLowerCase().email().max(254);
 const passwordSchema = z.string().min(8).max(256);
 const nameSchema = z.string().trim().max(80).default("");
+// ISO date (YYYY-MM-DD). Optional / nullable so it can be cleared.
+const dobSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD")
+  .optional()
+  .nullable();
 
 const signupSchema = z.object({
   email: emailSchema,
   password: passwordSchema,
   name: nameSchema,
+  dateOfBirth: dobSchema,
 });
 
 const loginSchema = z.object({
@@ -39,9 +46,13 @@ const loginSchema = z.object({
   password: z.string().min(1).max(256),
 });
 
+// Email + DOB intentionally NOT exposed here — DOB is read-only after
+// signup (admin can edit via DB) and email changes go through verification
+// in a separate flow if/when we add it.
 const updateAccountSchema = z.object({
   name: nameSchema.optional(),
-  email: emailSchema.optional(),
+  profession: z.string().trim().max(120).optional(),
+  instructions: z.string().max(4_000).optional(),
 });
 
 const changePasswordSchema = z.object({
@@ -57,8 +68,6 @@ function tokenHash(token: string): string {
 }
 
 function appBaseUrl(req: Request): string {
-  // Prefer explicit env (set in production), fall back to request host so
-  // local dev / curl tests still produce a reachable link.
   const envUrl = process.env.APP_BASE_URL;
   if (envUrl) return envUrl.replace(/\/$/, "");
   const host = req.get("host") ?? "localhost";
@@ -74,6 +83,9 @@ function publicUser(u: User) {
     role: u.role,
     bannedAt: u.bannedAt,
     emailVerifiedAt: u.emailVerifiedAt,
+    dateOfBirth: u.dateOfBirth,
+    profession: u.profession,
+    instructions: u.instructions,
     createdAt: u.createdAt,
   };
 }
@@ -102,7 +114,7 @@ router.post("/signup", authRateLimit, async (req, res) => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const { email, password, name } = parsed.data;
+  const { email, password, name, dateOfBirth } = parsed.data;
   const existing = await db
     .select({ id: usersTable.id })
     .from(usersTable)
@@ -115,15 +127,18 @@ router.post("/signup", authRateLimit, async (req, res) => {
   const passwordHash = await hashPassword(password);
   const [created] = await db
     .insert(usersTable)
-    .values({ email, passwordHash, name })
+    .values({
+      email,
+      passwordHash,
+      name,
+      ...(dateOfBirth ? { dateOfBirth } : {}),
+    })
     .returning();
   if (!created) {
     res.status(500).json({ error: "Failed to create account" });
     return;
   }
   await createUserSession(res, created.id);
-  // Best-effort: send verification email if SMTP is configured. Failures
-  // never block signup — the user can request another verification later.
   const verificationSent = await issueAndSendVerification(created, req).catch((err) => {
     logger.error({ err }, "verification send failed");
     return false;
@@ -188,20 +203,8 @@ router.patch("/account", requireUser(), async (req, res) => {
   }
   const updates: Partial<typeof usersTable.$inferInsert> = {};
   if (parsed.data.name !== undefined) updates.name = parsed.data.name;
-  if (parsed.data.email && parsed.data.email !== user.email) {
-    const dup = await db
-      .select({ id: usersTable.id })
-      .from(usersTable)
-      .where(eq(usersTable.email, parsed.data.email))
-      .limit(1);
-    if (dup.length > 0) {
-      res.status(409).json({ error: "Email already in use" });
-      return;
-    }
-    updates.email = parsed.data.email;
-    // Email changed -> mark unverified again.
-    updates.emailVerifiedAt = null;
-  }
+  if (parsed.data.profession !== undefined) updates.profession = parsed.data.profession;
+  if (parsed.data.instructions !== undefined) updates.instructions = parsed.data.instructions;
   if (Object.keys(updates).length === 0) {
     res.json({ user: publicUser(user) });
     return;
@@ -263,8 +266,6 @@ router.post("/verify-email/confirm", authRateLimit, async (req, res) => {
     return;
   }
   const hash = tokenHash(parsed.data.token);
-  // SELECT ... FOR UPDATE inside the transaction so two concurrent
-  // confirms can't both consume the same token.
   const ok = await db.transaction(async (tx) => {
     const [row] = await tx
       .select()
@@ -301,7 +302,6 @@ router.post("/verify-email/confirm", authRateLimit, async (req, res) => {
 const forgotSchema = z.object({ email: emailSchema });
 router.post("/forgot-password", authRateLimit, async (req, res) => {
   const parsed = forgotSchema.safeParse(req.body ?? {});
-  // Always return ok=true to avoid leaking which emails are registered.
   if (!parsed.success) {
     res.json({ ok: true });
     return;
@@ -347,8 +347,6 @@ router.post("/reset-password", authRateLimit, async (req, res) => {
   }
   const hash = tokenHash(parsed.data.token);
   const newHash = await hashPassword(parsed.data.newPassword);
-  // Lock the token row inside the transaction so two concurrent reset
-  // requests with the same token can't both succeed.
   const ok = await db.transaction(async (tx) => {
     const [row] = await tx
       .select()

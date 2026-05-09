@@ -19,3 +19,4 @@ export * from "./projects";
 export * from "./emailTokens";
 export * from "./smtpConfig";
 export * from "./adminAuditLog";
+export * from "./elevenlabsConfig";

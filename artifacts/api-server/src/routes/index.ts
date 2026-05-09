@@ -13,6 +13,7 @@ import visionRouter from "./vision";
 import remindersRouter from "./reminders";
 import pushRouter from "./push";
 import browserRouter from "./browser";
+import ttsRouter from "./tts";
 
 const router: IRouter = Router();
 
@@ -30,5 +31,6 @@ router.use("/vision", visionRouter);
 router.use("/reminders", remindersRouter);
 router.use("/push", pushRouter);
 router.use("/browser", browserRouter);
+router.use("/tts", ttsRouter);
 
 export default router;

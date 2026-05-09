@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, uuid, serial } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, uuid, serial, date } from "drizzle-orm/pg-core";
 
 export const usersTable = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -10,6 +10,12 @@ export const usersTable = pgTable("users", {
   banReason: text("ban_reason"),
   emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
   lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
+  // Profile fields editable from Account page (DOB & email are read-only
+  // from the UI; DOB is set at signup or by admin, email change goes
+  // through verification flow elsewhere).
+  dateOfBirth: date("date_of_birth"),
+  profession: text("profession").notNull().default(""),
+  instructions: text("instructions").notNull().default(""),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
