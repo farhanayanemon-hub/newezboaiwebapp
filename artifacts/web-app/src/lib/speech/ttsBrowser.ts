@@ -50,6 +50,43 @@ export interface SpeakOptions {
   signal?: AbortSignal;
 }
 
+
+// Smart picker: choose the highest-quality available voice for the language.
+// Prefer Google / Microsoft natural / Apple Siri / "Neural" / "Premium" tags
+// over the system default, which is usually the worst-sounding option.
+function pickBestVoice(lang: string): SpeechSynthesisVoice | null {
+  const voices = listVoices();
+  if (!voices.length) return null;
+  const want = lang.toLowerCase();
+  const wantPrefix = want.split(/[-_]/)[0];
+
+  const sameLang = voices.filter((v) => {
+    const vl = v.lang.toLowerCase();
+    return vl === want || vl.startsWith(wantPrefix + "-") || vl === wantPrefix;
+  });
+  const pool = sameLang.length ? sameLang : voices;
+
+  const score = (v: SpeechSynthesisVoice): number => {
+    const n = v.name.toLowerCase();
+    let s = 0;
+    // High-quality vendor neural voices.
+    if (/google /i.test(v.name)) s += 100;
+    if (/(natural|neural|premium|enhanced|wavenet|studio)/i.test(n)) s += 90;
+    if (/microsoft .* (online|natural)/i.test(n)) s += 80;
+    if (/(aria|jenny|guy|davis|emma|brian|samantha|alex|siri)/i.test(n)) s += 50;
+    // Avoid eSpeak / Festival / "compact" / "fallback".
+    if (/(espeak|festival|compact|fallback|robot)/i.test(n)) s -= 100;
+    // Exact lang match beats partial.
+    if (v.lang.toLowerCase() === want) s += 20;
+    // localService=true is usually lower quality on Linux servers/old browsers.
+    if (!v.localService) s += 10;
+    if (v.default) s += 5;
+    return s;
+  };
+
+  return [...pool].sort((a, b) => score(b) - score(a))[0] ?? null;
+}
+
 export function speakBrowser(text: string, opts: SpeakOptions = {}): Promise<void> {
   return new Promise<void>((resolve) => {
     if (!isBrowserTtsSupported() || !text.trim()) {
@@ -64,6 +101,9 @@ export function speakBrowser(text: string, opts: SpeakOptions = {}): Promise<voi
     if (opts.voiceName) {
       const v = listVoices().find((vv) => vv.name === opts.voiceName);
       if (v) utt.voice = v;
+    } else {
+      const best = pickBestVoice(utt.lang);
+      if (best) utt.voice = best;
     }
     let done = false;
     const finish = () => {

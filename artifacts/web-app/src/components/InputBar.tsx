@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type DragEvent, type KeyboardEvent } from "react";
 import TextareaAutosize from "react-textarea-autosize";
-import { Camera, Monitor, Paperclip, Send, StopCircle, Mic, Globe, Plus, Bot } from "lucide-react";
+import { Camera, Monitor, Paperclip, Send, StopCircle, Mic, Globe, Plus, Bot, AudioLines } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
@@ -11,6 +11,7 @@ import {
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { MicButton } from "@/components/MicButton";
+import { VoiceModeOverlay } from "@/components/VoiceModeOverlay";
 import { CameraOverlay } from "@/components/CameraOverlay";
 import { ScreenShareOverlay } from "@/components/ScreenShareOverlay";
 import { useCameraStore } from "@/stores/cameraStore";
@@ -63,6 +64,7 @@ export function InputBar({
   const [composing, setComposing] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [voiceModeOpen, setVoiceModeOpen] = useState(false);
   const dragDepth = useRef(0);
   const openCamera = useCameraStore((s) => s.open);
   const openScreenShare = useScreenShareStore((s) => s.open);
@@ -233,62 +235,38 @@ export function InputBar({
           )}
         >
           <div className="flex items-center gap-0.5 pb-0.5 pl-0.5">
-            {/* Mobile: collapsed Plus menu. */}
-            <div className="md:hidden">
-              <Popover open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-9 w-9 rounded-lg text-muted-foreground hover-elevate active-elevate-2"
-                    aria-label="Open actions"
-                    data-testid="button-mobile-menu"
-                  >
-                    <Plus className="h-5 w-5" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent side="top" align="start" className="w-56 p-1">
-                  {menuRow("Voice (mic)", Mic, () => setMicArmed((v) => !v), "menu-voice", micArmed)}
-                  {menuRow("Camera", Camera, () => openCamera(), "menu-camera")}
-                  {menuRow("Screen share", Monitor, () => openScreenShare(), "menu-screen")}
-                  {menuRow("Attach files", Paperclip, () => fileInputRef.current?.click(), "menu-files")}
-                  {menuRow("Upload image", Camera, () => fileInputRef.current?.click(), "menu-image")}
-                  {menuRow(`Agent mode${agentMode ? " (on)" : ""}`, Bot, toggleAgentMode, "menu-agent", agentMode)}
-                  {menuRow("Web task", Globe, triggerWebTask, "menu-web")}
-                </PopoverContent>
-              </Popover>
-            </div>
-
-            {/* Mobile: a small dedicated mic-tap area — appears only when armed via menu OR always (compact). Keeps voice instantly accessible. */}
-            <div className="md:hidden">
-              <MicButton
-                disabled={disabled}
-                onInterim={(text) => onChange(text)}
-                onFinal={(text) => onChange(text)}
-                onAutoSend={() => {
-                  setTimeout(() => { if (canSend || trimmed.length === 0) onSend(); }, 50);
-                }}
-              />
-            </div>
-
-            {/* Desktop: full action row. */}
-            <div className="hidden md:flex items-center gap-0.5">
-              <MicButton
-                disabled={disabled}
-                onInterim={(text) => onChange(text)}
-                onFinal={(text) => onChange(text)}
-                onAutoSend={() => {
-                  setTimeout(() => { if (canSend || trimmed.length === 0) onSend(); }, 50);
-                }}
-              />
-              {iconBtn(ARIA_LABELS.camera, "button-action-camera", () => openCamera(), Camera, "Camera (Snap or Live Vision)")}
-              {iconBtn(ARIA_LABELS.screen, "button-action-screen", () => openScreenShare(), Monitor, "Screen share (Ask or Proactive)")}
-              {iconBtn(ARIA_LABELS.file, "button-action-file", () => fileInputRef.current?.click(), Paperclip, "Attach file (max 25 MB, 10 per message)")}
-              {iconBtn(ARIA_LABELS.agent, "button-action-agent", toggleAgentMode, Bot,
-                agentMode ? "Agent mode ON — click to turn off" : "Agent mode (autonomous research + follow-ups)",
-                false, agentMode ? "text-primary bg-primary/10" : "")}
-              {iconBtn(ARIA_LABELS.web, "button-action-web", triggerWebTask, Globe, "Web task — let AI control a browser", launchingWeb || disabled)}
-            </div>
+            {/* Single Plus popover — same on mobile + desktop. */}
+            <Popover open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9 rounded-lg text-muted-foreground hover-elevate active-elevate-2"
+                  aria-label="Open actions"
+                  data-testid="button-actions-menu"
+                >
+                  <Plus className="h-5 w-5" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent side="top" align="start" className="w-56 p-1">
+                {menuRow("Voice mode", AudioLines, () => { setMobileMenuOpen(false); setVoiceModeOpen(true); }, "menu-voice-mode")}
+                {menuRow("Camera", Camera, () => openCamera(), "menu-camera")}
+                {menuRow("Screen share", Monitor, () => openScreenShare(), "menu-screen")}
+                {menuRow("Attach files", Paperclip, () => fileInputRef.current?.click(), "menu-files")}
+                {menuRow("Upload image", Camera, () => fileInputRef.current?.click(), "menu-image")}
+                {menuRow(`Agent mode${agentMode ? " (on)" : ""}`, Bot, toggleAgentMode, "menu-agent", agentMode)}
+                {menuRow("Web task", Globe, triggerWebTask, "menu-web")}
+              </PopoverContent>
+            </Popover>
+            
+            <MicButton
+              disabled={disabled}
+              onInterim={(text) => onChange(text)}
+              onFinal={(text) => onChange(text)}
+              onAutoSend={() => {
+                setTimeout(() => { if (canSend || trimmed.length === 0) onSend(); }, 50);
+              }}
+            />
 
             <input
               ref={fileInputRef}
@@ -371,6 +349,13 @@ export function InputBar({
         </p>
       </div>
 
+      <VoiceModeOverlay
+        open={voiceModeOpen}
+        onClose={() => setVoiceModeOpen(false)}
+        onChange={onChange}
+        onAutoSend={() => onSend()}
+        disabled={disabled}
+      />
       <CameraOverlay
         onSnap={(file) => {
           if (onFilesPicked) onFilesPicked([file]);

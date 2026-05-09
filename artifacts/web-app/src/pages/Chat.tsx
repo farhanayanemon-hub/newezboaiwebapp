@@ -58,6 +58,7 @@ function attachedItemToMeta(it: AttachedItem): MessageAttachment | null {
 
 export default function ChatPage() {
   const agentMode = useChatStore((s) => s.agentMode);
+  const webSearchEnabled = useChatStore((s) => s.webSearchEnabled);
   const [input, setInput] = useState("");
   useEffect(() => {
     try {
@@ -255,7 +256,7 @@ export default function ChatPage() {
           taskType,
           conversationId: activeConversationId ?? undefined,
           attachmentIds: ids.length ? ids : undefined,
-          useWebSearch: useWebSearchEnabled || agentMode,
+          useWebSearch: webSearchEnabled || agentMode,
           agentMode,
           signal: ctrl.signal,
         },

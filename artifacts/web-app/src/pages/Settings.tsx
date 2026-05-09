@@ -152,46 +152,6 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
 
-          <Card data-testid="card-account">
-            <CardHeader>
-              <div className="flex items-start gap-3">
-                <User className="mt-0.5 h-5 w-5 text-primary" />
-                <div className="flex-1">
-                  <CardTitle className="text-base">Account</CardTitle>
-                  <CardDescription>
-                    EzboAI runs as a single-tenant app on your own domain — no
-                    sign-in required.
-                  </CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-3 text-sm">
-              <div className="flex items-center justify-between rounded-md border border-border/60 px-3 py-2">
-                <span className="text-muted-foreground">Domain</span>
-                <span className="font-medium" data-testid="text-account-domain">
-                  {typeof window !== "undefined" ? window.location.hostname : "ezboai.com"}
-                </span>
-              </div>
-              <div className="flex items-center justify-between rounded-md border border-border/60 px-3 py-2">
-                <span className="text-muted-foreground">Version</span>
-                <span className="font-medium" data-testid="text-account-version">
-                  {appVersion}
-                </span>
-              </div>
-              <Button
-                asChild
-                variant="outline"
-                className="w-full justify-start hover-elevate active-elevate-2"
-                data-testid="button-open-admin"
-              >
-                <Link href="/admin" aria-label="Open admin">
-                  <ShieldCheck className="mr-2 h-4 w-4" />
-                  Admin — AI keys, vault &amp; access rules
-                  <ExternalLink className="ml-auto h-3.5 w-3.5 text-muted-foreground" />
-                </Link>
-              </Button>
-            </CardContent>
-          </Card>
         </div>
       </div>
     </AppShell>

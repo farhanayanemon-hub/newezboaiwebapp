@@ -66,7 +66,6 @@ export function SidebarContent({ onNavigate }: SidebarContentProps) {
     bottomNav.push({ href: "/account", label: "Account", icon: UserCircle2, testId: "nav-account" });
   }
   bottomNav.push({ href: "/settings", label: "Settings", icon: Settings, testId: "nav-settings" });
-  bottomNav.push({ href: "/onboarding", label: "Replay onboarding", icon: Sparkles, testId: "nav-onboarding" });
   if (isAdmin) {
     bottomNav.push({ href: "/admin", label: "Admin", icon: ShieldCheck, testId: "nav-admin" });
   }
