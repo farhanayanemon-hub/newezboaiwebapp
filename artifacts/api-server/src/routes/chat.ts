@@ -237,7 +237,7 @@ router.post("/stream", async (req, res) => {
 
   // resolvedTier was loaded above (from the DB) so admin-editable taskType
   // and prompt addons both take effect immediately on the next chat turn.
-  const systemPrompt = await buildSystemPrompt(resolvedTier);
+  const systemPrompt = await buildSystemPrompt(resolvedTier, lastUser?.content);
   const fullMessages: ChatMessage[] = [
     { role: "system", content: systemPrompt },
     ...userMessages.map((m, i): ChatMessage => {
