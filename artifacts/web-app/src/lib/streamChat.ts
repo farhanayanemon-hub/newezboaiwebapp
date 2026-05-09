@@ -36,6 +36,7 @@ export interface StreamOptions {
   attachmentIds?: string[];
   /** Per-browser opt-out for live web search. Defaults true if omitted. */
   useWebSearch?: boolean;
+  agentMode?: boolean;
   signal?: AbortSignal;
 }
 
@@ -51,6 +52,7 @@ export async function streamChat(opts: StreamOptions, handlers: StreamHandlers):
       conversationId: opts.conversationId,
       attachmentIds: opts.attachmentIds,
       useWebSearch: opts.useWebSearch !== false,
+      agentMode: opts.agentMode === true,
     }),
     signal: opts.signal,
   });

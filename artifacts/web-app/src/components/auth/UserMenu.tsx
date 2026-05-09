@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "wouter";
 import { LogOut, UserCircle2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,16 @@ export function UserMenu() {
   const { user, loading, logout } = useAuth();
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<"login" | "signup">("login");
+
+  useEffect(() => {
+    function onOpenAuth(e: Event) {
+      const detail = (e as CustomEvent).detail as { mode?: "login" | "signup" } | undefined;
+      setModalMode(detail?.mode === "signup" ? "signup" : "login");
+      setModalOpen(true);
+    }
+    window.addEventListener("ezboai:open-auth", onOpenAuth as EventListener);
+    return () => window.removeEventListener("ezboai:open-auth", onOpenAuth as EventListener);
+  }, []);
 
   if (loading) {
     return <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />;

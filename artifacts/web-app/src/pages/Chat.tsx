@@ -57,7 +57,23 @@ function attachedItemToMeta(it: AttachedItem): MessageAttachment | null {
 }
 
 export default function ChatPage() {
+  const agentMode = useChatStore((s) => s.agentMode);
   const [input, setInput] = useState("");
+  useEffect(() => {
+    try {
+      const pending = window.sessionStorage.getItem("ezboai-initial-prompt");
+      if (pending) {
+        window.sessionStorage.removeItem("ezboai-initial-prompt");
+        setInput(pending);
+      }
+      const wantAuth = window.sessionStorage.getItem("ezboai-open-auth");
+      if (wantAuth) {
+        window.sessionStorage.removeItem("ezboai-open-auth");
+        window.dispatchEvent(new CustomEvent("ezboai:open-auth", { detail: { mode: wantAuth === "signup" ? "signup" : "login" } }));
+      }
+    } catch { /* sessionStorage may be disabled */ }
+  }, []);
+
   const [attached, setAttached] = useState<AttachedItem[]>([]);
   const { addFiles } = useFileUploads({ items: attached, setItems: setAttached });
   const [streamingConversationIds, setStreamingConversationIds] = useState<Set<string>>(
@@ -239,7 +255,8 @@ export default function ChatPage() {
           taskType,
           conversationId: activeConversationId ?? undefined,
           attachmentIds: ids.length ? ids : undefined,
-          useWebSearch: useWebSearchEnabled,
+          useWebSearch: useWebSearchEnabled || agentMode,
+          agentMode,
           signal: ctrl.signal,
         },
         {

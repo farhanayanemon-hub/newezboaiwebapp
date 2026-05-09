@@ -97,7 +97,7 @@ export function AppShell({
                 </Link>
               </Button>
             )}
-            <ThemeToggle />
+            <div className="hidden md:inline-flex"><ThemeToggle /></div>
             <UserMenu />
           </div>
         </header>

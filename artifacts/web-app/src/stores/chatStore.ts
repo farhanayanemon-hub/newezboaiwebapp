@@ -11,6 +11,7 @@ interface ChatUIState {
   selectedModelId: string | null;
   voiceOutputEnabled: boolean;
   webSearchEnabled: boolean;
+  agentMode: boolean;
   /**
    * One-shot attachment IDs pre-staged from the Files page ("Attach to new
    * chat"). Picked up by the Chat page on mount and then cleared.
@@ -21,6 +22,7 @@ interface ChatUIState {
   setSelectedModel: (id: string | null) => void;
   toggleVoiceOutput: () => void;
   setWebSearchEnabled: (v: boolean) => void;
+  setAgentMode: (v: boolean) => void;
   setPendingAttachments: (ids: string[]) => void;
   clearPendingAttachments: () => void;
 }
@@ -32,23 +34,26 @@ export const useChatStore = create<ChatUIState>()(
       selectedModelId: null,
       voiceOutputEnabled: false,
       webSearchEnabled: true,
+      agentMode: false,
       pendingAttachments: [],
       setActiveConversation: (id) => set({ activeConversationId: id }),
       setSelectedModel: (id) => set({ selectedModelId: id }),
       toggleVoiceOutput: () =>
         set((s) => ({ voiceOutputEnabled: !s.voiceOutputEnabled })),
       setWebSearchEnabled: (v) => set({ webSearchEnabled: v }),
+      setAgentMode: (v) => set({ agentMode: v }),
       setPendingAttachments: (ids) => set({ pendingAttachments: ids }),
       clearPendingAttachments: () => set({ pendingAttachments: [] }),
     }),
     {
       name: "ezboai-chat-ui",
-      version: 3,
+      version: 4,
       storage: createJSONStorage(() => localStorage),
       partialize: (s) => ({
         selectedModelId: s.selectedModelId,
         voiceOutputEnabled: s.voiceOutputEnabled,
         webSearchEnabled: s.webSearchEnabled,
+        agentMode: s.agentMode,
       }),
     },
   ),

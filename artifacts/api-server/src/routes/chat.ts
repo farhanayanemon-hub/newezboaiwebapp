@@ -21,6 +21,12 @@ import type { ChatMessage, ChatContentPart } from "../ai/providers/types";
 import { decideSearch, runWebSearch, formatResultsForPrompt } from "../lib/webSearch";
 import type { MessageSource } from "@workspace/db";
 
+
+  // Agent mode: append autonomous-agent directive that instructs the model
+  // to ask the user clarifying questions when it needs more info, and to
+  // proactively use the web_search results provided in the context.
+  const AGENT_DIRECTIVE = `\n\n[Agent Mode]\nYou are operating as an autonomous research agent. When the user gives you a task:\n1. If you need clarifying details (budget, brand preference, region, deadline, constraints), ASK ONE focused question and wait for the answer before continuing. Phrase questions naturally in the user's language (Bangla/English mix is fine).\n2. Use any web search results already injected into context. Cite sources by title.\n3. After delivering results, ask the user if they want you to refine, narrow down, or take a follow-up step.\n4. Keep momentum: every reply should either deliver progress, ask exactly one focused question, or both.\n5. If a multi-step task: outline the steps briefly, then proceed step-by-step, pausing for user input only when truly needed.`;
+
 const router: IRouter = Router();
 
 const messageSchema = z.object({
@@ -35,6 +41,7 @@ const streamSchema = z.object({
   conversationId: z.string().uuid().optional(),
   attachmentIds: z.array(z.string().uuid()).max(10).optional(),
   useWebSearch: z.boolean().optional(),
+  agentMode: z.boolean().optional(),
 });
 
 // Hard cap on attached text bytes injected into a single chat turn so we
@@ -97,7 +104,7 @@ router.post("/stream", async (req, res) => {
     return;
   }
 
-  const { messages, modelOverride: rawModelOverride, attachmentIds = [] } = parsed.data;
+  const { messages, modelOverride: rawModelOverride, attachmentIds = [], agentMode = false } = parsed.data;
 
   // The frontend now sends synthetic Ezbo tier IDs (`ezbo:standard|mini|pro`)
   // rather than raw `provider:model` strings. Translate the tier into a
@@ -281,7 +288,8 @@ router.post("/stream", async (req, res) => {
   // resolvedTier was loaded above (from the DB) so admin-editable taskType
   // and prompt addons both take effect immediately on the next chat turn.
   const systemPrompt = await buildSystemPrompt(resolvedTier, lastUser?.content);
-  const finalSystemPrompt = webSearchBlock ? systemPrompt + webSearchBlock : systemPrompt;
+  let finalSystemPrompt = webSearchBlock ? systemPrompt + webSearchBlock : systemPrompt;
+  if (agentMode) finalSystemPrompt += AGENT_DIRECTIVE;
   const fullMessages: ChatMessage[] = [
     { role: "system", content: finalSystemPrompt },
     ...userMessages.map((m, i): ChatMessage => {
