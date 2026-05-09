@@ -288,6 +288,24 @@ function MessageBubbleImpl({ message }: MessageBubbleProps) {
           </div>
         )}
 
+        {!isUser && meta?.sources && meta.sources.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1.5" data-testid="message-sources">
+            <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Sources</span>
+            {meta.sources.map((s, i) => (
+              <a
+                key={`${s.url}-${i}`}
+                href={s.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={s.snippet || s.title}
+                className="inline-flex max-w-full items-center gap-1 truncate rounded-full border border-border bg-muted/40 px-2 py-0.5 text-[11px] text-foreground hover:bg-muted"
+              >
+                <span className="font-medium">[{i + 1}]</span>
+                <span className="truncate">{s.domain || s.title}</span>
+              </a>
+            ))}
+          </div>
+        )}
         {!isUser && meta && (meta.provider || meta.error) && (
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground/80">
             {meta.error ? (

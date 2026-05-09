@@ -5,9 +5,17 @@ export interface StreamMessage {
   content: string;
 }
 
+export interface StreamSource {
+  title: string;
+  url: string;
+  domain?: string;
+  snippet?: string;
+}
+
 export interface StreamHandlers {
   onConversation?: (info: { conversationId: string; created: boolean }) => void;
   onChunk?: (delta: string) => void;
+  onSources?: (sources: StreamSource[]) => void;
   onDone?: (info: {
     provider?: string;
     model?: string;
@@ -15,6 +23,7 @@ export interface StreamHandlers {
     inputTokens?: number;
     outputTokens?: number;
     savedMemories?: { key: string; value: string }[];
+    sources?: StreamSource[];
   }) => void;
   onError?: (message: string) => void;
 }
@@ -25,6 +34,8 @@ export interface StreamOptions {
   taskType?: string;
   conversationId?: string;
   attachmentIds?: string[];
+  /** Per-browser opt-out for live web search. Defaults true if omitted. */
+  useWebSearch?: boolean;
   signal?: AbortSignal;
 }
 
@@ -39,6 +50,7 @@ export async function streamChat(opts: StreamOptions, handlers: StreamHandlers):
       taskType: opts.taskType,
       conversationId: opts.conversationId,
       attachmentIds: opts.attachmentIds,
+      useWebSearch: opts.useWebSearch !== false,
     }),
     signal: opts.signal,
   });
@@ -75,6 +87,7 @@ export async function streamChat(opts: StreamOptions, handlers: StreamHandlers):
         const data = JSON.parse(json) as
           | { type: "conversation"; conversationId: string; created: boolean }
           | { type: "chunk"; content: string }
+          | { type: "sources"; sources: StreamSource[] }
           | {
               type: "done";
               provider?: string;
@@ -82,6 +95,7 @@ export async function streamChat(opts: StreamOptions, handlers: StreamHandlers):
               latencyMs?: number;
               usage?: { inputTokens?: number; outputTokens?: number };
               savedMemories?: { key: string; value: string }[];
+              sources?: StreamSource[];
             }
           | { type: "error"; message: string };
 
@@ -92,6 +106,8 @@ export async function streamChat(opts: StreamOptions, handlers: StreamHandlers):
           });
         } else if (data.type === "chunk") {
           handlers.onChunk?.(data.content);
+        } else if (data.type === "sources") {
+          handlers.onSources?.(data.sources);
         } else if (data.type === "done") {
           handlers.onDone?.({
             provider: data.provider,
@@ -100,6 +116,7 @@ export async function streamChat(opts: StreamOptions, handlers: StreamHandlers):
             inputTokens: data.usage?.inputTokens,
             outputTokens: data.usage?.outputTokens,
             savedMemories: data.savedMemories,
+            sources: data.sources,
           });
         } else if (data.type === "error") {
           handlers.onError?.(data.message);

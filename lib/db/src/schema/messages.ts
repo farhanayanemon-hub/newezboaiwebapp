@@ -13,6 +13,14 @@ export interface MessageAttachmentMeta {
   size?: number;
 }
 
+/** Cited web-search source rendered as a chip under the assistant reply. */
+export interface MessageSource {
+  title: string;
+  url: string;
+  domain?: string;
+  snippet?: string;
+}
+
 export const messagesTable = pgTable(
   "messages",
   {
@@ -28,6 +36,7 @@ export const messagesTable = pgTable(
       .$type<MessageAttachmentMeta[]>()
       .notNull()
       .default([]),
+    sources: jsonb("sources").$type<MessageSource[]>().notNull().default([]),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (t) => ({

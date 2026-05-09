@@ -20,3 +20,5 @@ export * from "./emailTokens";
 export * from "./smtpConfig";
 export * from "./adminAuditLog";
 export * from "./elevenlabsConfig";
+export * from "./webSearchConfig";
+export * from "./webSearchUsage";

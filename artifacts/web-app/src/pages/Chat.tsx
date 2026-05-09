@@ -239,6 +239,7 @@ export default function ChatPage() {
           taskType,
           conversationId: activeConversationId ?? undefined,
           attachmentIds: ids.length ? ids : undefined,
+          useWebSearch: useWebSearchEnabled,
           signal: ctrl.signal,
         },
         {
@@ -257,6 +258,13 @@ export default function ChatPage() {
               abortControllers.current.set(conversationId, ctrl);
               qc.invalidateQueries({ queryKey: conversationKeys.list() });
             }
+          },
+          onSources: (sources) => {
+            const cid = resolvedConvId;
+            if (!cid) return;
+            conversationCache.patchMessage(qc, cid, assistantMessage.id, {
+              meta: { sources },
+            });
           },
           onChunk: (delta) => {
             const cid = resolvedConvId;

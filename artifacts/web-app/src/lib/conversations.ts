@@ -66,9 +66,14 @@ const toMessage = (m: ApiMessage): Message => ({
             size: a.size,
           }))
       : undefined,
-  meta: m.provider || m.model
-    ? { provider: m.provider ?? undefined, model: m.model ?? undefined }
-    : undefined,
+  meta:
+    m.provider || m.model || (m.sources && m.sources.length)
+      ? {
+          provider: m.provider ?? undefined,
+          model: m.model ?? undefined,
+          sources: (m.sources ?? undefined) as MessageMetaSources | undefined,
+        }
+      : undefined,
 });
 
 /**
@@ -77,6 +82,13 @@ const toMessage = (m: ApiMessage): Message => ({
  *   - "unfiled" → conversations not in any project
  *   - "<uuid>"  → that specific project
  */
+export type MessageMetaSources = Array<{
+  title: string;
+  url: string;
+  domain?: string;
+  snippet?: string;
+}>;
+
 export type ConversationFilter = string | undefined;
 
 export const conversationKeys = {

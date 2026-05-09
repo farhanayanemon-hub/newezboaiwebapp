@@ -1,4 +1,4 @@
-import { Settings as SettingsIcon, Sun, Moon, Monitor, Bell, User, Zap, Mic, ArrowLeft, ShieldCheck, ExternalLink } from "lucide-react";
+import { Settings as SettingsIcon, Sun, Moon, Monitor, Bell, User, Zap, Mic, Globe, ArrowLeft, ShieldCheck, ExternalLink } from "lucide-react";
 import { Link } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,7 @@ import { AppShell } from "@/components/AppShell";
 import { useTheme } from "@/lib/theme-provider";
 import { QuickActionsManager } from "@/components/QuickActionsManager";
 import { VoiceSettings } from "@/components/VoiceSettings";
+import { WebSearchSettings } from "@/components/WebSearchSettings";
 import { NotificationSettings } from "@/components/NotificationSettings";
 
 export default function SettingsPage() {
@@ -72,6 +73,25 @@ export default function SettingsPage() {
                   );
                 })}
               </div>
+            </CardContent>
+          </Card>
+
+          <Separator />
+
+          <Card data-testid="card-web-search-settings">
+            <CardHeader>
+              <div className="flex items-start gap-3">
+                <Globe className="mt-0.5 h-5 w-5 text-primary" />
+                <div className="flex-1">
+                  <CardTitle className="text-base">Web Search</CardTitle>
+                  <CardDescription>
+                    Let Ezbo fetch live results when you ask about current events
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <WebSearchSettings />
             </CardContent>
           </Card>
 

@@ -10,6 +10,7 @@ import ezboTiers from "./ezboTiers";
 import users from "./users";
 import smtp from "./smtp";
 import elevenlabs from "./elevenlabs";
+import webSearch from "./webSearch";
 import overview from "./overview";
 
 const router: IRouter = Router();
@@ -25,6 +26,7 @@ router.use("/ezbo-tiers", ezboTiers);
 router.use("/users", users);
 router.use("/smtp", smtp);
 router.use("/elevenlabs", elevenlabs);
+router.use("/web-search", webSearch);
 router.use("/overview", overview);
 
 export default router;

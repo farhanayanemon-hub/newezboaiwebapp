@@ -10,6 +10,7 @@ interface ChatUIState {
   activeConversationId: string | null;
   selectedModelId: string | null;
   voiceOutputEnabled: boolean;
+  webSearchEnabled: boolean;
   /**
    * One-shot attachment IDs pre-staged from the Files page ("Attach to new
    * chat"). Picked up by the Chat page on mount and then cleared.
@@ -19,6 +20,7 @@ interface ChatUIState {
   setActiveConversation: (id: string | null) => void;
   setSelectedModel: (id: string | null) => void;
   toggleVoiceOutput: () => void;
+  setWebSearchEnabled: (v: boolean) => void;
   setPendingAttachments: (ids: string[]) => void;
   clearPendingAttachments: () => void;
 }
@@ -29,11 +31,13 @@ export const useChatStore = create<ChatUIState>()(
       activeConversationId: null,
       selectedModelId: null,
       voiceOutputEnabled: false,
+      webSearchEnabled: true,
       pendingAttachments: [],
       setActiveConversation: (id) => set({ activeConversationId: id }),
       setSelectedModel: (id) => set({ selectedModelId: id }),
       toggleVoiceOutput: () =>
         set((s) => ({ voiceOutputEnabled: !s.voiceOutputEnabled })),
+      setWebSearchEnabled: (v) => set({ webSearchEnabled: v }),
       setPendingAttachments: (ids) => set({ pendingAttachments: ids }),
       clearPendingAttachments: () => set({ pendingAttachments: [] }),
     }),
@@ -44,6 +48,7 @@ export const useChatStore = create<ChatUIState>()(
       partialize: (s) => ({
         selectedModelId: s.selectedModelId,
         voiceOutputEnabled: s.voiceOutputEnabled,
+        webSearchEnabled: s.webSearchEnabled,
       }),
     },
   ),

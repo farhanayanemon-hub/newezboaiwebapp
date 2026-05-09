@@ -18,6 +18,8 @@ import { upsertMemoryFromChat } from "./memories";
 import { loadAttachments, type ResolvedAttachment } from "./files";
 import { readObject } from "../services/objectStorage";
 import type { ChatMessage, ChatContentPart } from "../ai/providers/types";
+import { decideSearch, runWebSearch, formatResultsForPrompt } from "../lib/webSearch";
+import type { MessageSource } from "@workspace/db";
 
 const router: IRouter = Router();
 
@@ -32,6 +34,7 @@ const streamSchema = z.object({
   modelOverride: z.string().optional(),
   conversationId: z.string().uuid().optional(),
   attachmentIds: z.array(z.string().uuid()).max(10).optional(),
+  useWebSearch: z.boolean().optional(),
 });
 
 // Hard cap on attached text bytes injected into a single chat turn so we
@@ -235,11 +238,52 @@ router.post("/stream", async (req, res) => {
   }
   void savedUserMessageId;
 
+  // ----- Live web search (server-side heuristic) -----
+  // Decide whether to fetch fresh web results, fetch them, and inject
+  // them into the system prompt as grounding context. We also emit a
+  // `sources` SSE event so the UI can render citation chips.
+  let webSearchSources: MessageSource[] = [];
+  let webSearchBlock = "";
+  const useWebSearch = parsed.data.useWebSearch !== false;
+  if (useWebSearch && lastUser?.content) {
+    const decision = decideSearch(lastUser.content);
+    if (decision.shouldSearch) {
+      const ownerKey = callerUserId
+        ? `user:${callerUserId}`
+        : `guest:${(req.ip || "unknown").slice(0, 64)}`;
+      const ownerKind: "user" | "guest" = callerUserId ? "user" : "guest";
+      try {
+        const out = await runWebSearch({
+          ownerKey,
+          ownerKind,
+          query: decision.query,
+        });
+        if (out.ran && out.results.length) {
+          webSearchSources = out.results;
+          webSearchBlock = formatResultsForPrompt(
+            decision.query,
+            out.results,
+            out.answer,
+          );
+          send({ type: "sources", sources: webSearchSources });
+        } else {
+          req.log?.info?.(
+            { reason: out.reason, query: decision.query.slice(0, 80) },
+            "web search skipped",
+          );
+        }
+      } catch (err) {
+        req.log?.error?.({ err }, "web search failed");
+      }
+    }
+  }
+
   // resolvedTier was loaded above (from the DB) so admin-editable taskType
   // and prompt addons both take effect immediately on the next chat turn.
   const systemPrompt = await buildSystemPrompt(resolvedTier, lastUser?.content);
+  const finalSystemPrompt = webSearchBlock ? systemPrompt + webSearchBlock : systemPrompt;
   const fullMessages: ChatMessage[] = [
-    { role: "system", content: systemPrompt },
+    { role: "system", content: finalSystemPrompt },
     ...userMessages.map((m, i): ChatMessage => {
       if (i === lastUserIdx && augmentedLastUser) return augmentedLastUser;
       return { role: m.role, content: m.content };
@@ -272,6 +316,7 @@ router.post("/stream", async (req, res) => {
         content: cleaned || fullReply,
         provider: out.provider,
         model: out.model,
+        sources: webSearchSources,
       });
       await db
         .update(conversationsTable)
@@ -288,6 +333,7 @@ router.post("/stream", async (req, res) => {
       latencyMs: out.latencyMs,
       usage: out.result.usage,
       savedMemories: memories,
+      sources: webSearchSources,
     });
 
     void maybeAutoTitle(conversationId, lastUser?.content ?? "", cleaned || fullReply, req).catch(

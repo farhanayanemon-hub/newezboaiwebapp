@@ -11,6 +11,7 @@ import {
   Users,
   Mail,
   Mic,
+  Globe,
   LayoutDashboard,
 } from "lucide-react";
 import { AdminLogin } from "@/components/admin/AdminLogin";
@@ -26,6 +27,7 @@ import { EzboTiersTab } from "@/components/admin/EzboTiersTab";
 import { UsersTab } from "@/components/admin/UsersTab";
 import { SmtpTab } from "@/components/admin/SmtpTab";
 import { ElevenLabsTab } from "@/components/admin/ElevenLabsTab";
+import { WebSearchTab } from "@/components/admin/WebSearchTab";
 import { apiClient } from "@/lib/api";
 
 const NAV_ITEMS: AdminNavItem[] = [
@@ -40,6 +42,7 @@ const NAV_ITEMS: AdminNavItem[] = [
   { id: "access", label: "Access", icon: <Shield className="h-4 w-4" /> },
   { id: "smtp", label: "SMTP", icon: <Mail className="h-4 w-4" /> },
   { id: "elevenlabs", label: "ElevenLabs", icon: <Mic className="h-4 w-4" /> },
+  { id: "web-search", label: "Web Search", icon: <Globe className="h-4 w-4" /> },
 ];
 
 const STORAGE_KEY = "ezboai-admin-active-section";
@@ -68,6 +71,8 @@ function renderSection(id: string) {
       return <SmtpTab />;
     case "elevenlabs":
       return <ElevenLabsTab />;
+    case "web-search":
+      return <WebSearchTab />;
     default:
       return <DashboardTab />;
   }
