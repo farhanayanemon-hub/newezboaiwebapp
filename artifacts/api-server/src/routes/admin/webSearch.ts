@@ -7,7 +7,7 @@ import { encrypt, decrypt } from "../../ai/crypto";
 import { probeTavilyKey } from "../../lib/webSearch";
 
 const router: IRouter = Router();
-router.use(requireAdmin);
+router.use(requireAdmin());
 
 const upsertSchema = z.object({
   apiKey: z.string().optional(),
