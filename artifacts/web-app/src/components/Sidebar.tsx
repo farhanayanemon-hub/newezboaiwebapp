@@ -18,6 +18,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Logo } from "@/components/Logo";
 import { ThreadList } from "@/components/ThreadList";
+import { useTheme } from "@/lib/theme-provider";
+import { Sun, Moon, Monitor } from "lucide-react";
 import { ProjectsSection } from "@/components/ProjectsSection";
 import { useChatStore } from "@/stores/chatStore";
 import { useAuth } from "@/lib/auth";
@@ -155,10 +157,55 @@ export function SidebarContent({ onNavigate }: SidebarContentProps) {
 
       <Separator className="bg-sidebar-border" />
 
+      {/* Theme picker — quick access from the sidebar */}
+      <div className="px-3 py-2">
+        <div className="mb-1 px-1 text-[10px] font-medium uppercase tracking-wide text-sidebar-foreground/50">
+          Theme
+        </div>
+        <SidebarThemePicker />
+      </div>
+
+      <Separator className="bg-sidebar-border" />
+
       {/* Bottom: account / settings / admin — clearly separated */}
       <nav className="space-y-1 px-3 py-3">
         {bottomNav.map(renderNavLink)}
       </nav>
+    </div>
+  );
+}
+
+
+function SidebarThemePicker() {
+  const { theme, setTheme } = useTheme();
+  const opts = [
+    { value: "light" as const, label: "Light", Icon: Sun },
+    { value: "dark" as const, label: "Dark", Icon: Moon },
+    { value: "system" as const, label: "Auto", Icon: Monitor },
+  ];
+  return (
+    <div className="grid grid-cols-3 gap-1">
+      {opts.map(({ value, label, Icon }) => {
+        const active = theme === value;
+        return (
+          <button
+            key={value}
+            type="button"
+            onClick={() => setTheme(value)}
+            aria-pressed={active}
+            data-testid={`sidebar-theme-${value}`}
+            className={cn(
+              "flex flex-col items-center gap-1 rounded-md px-2 py-2 text-[10px] font-medium transition-colors hover-elevate active-elevate-2",
+              active
+                ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                : "text-sidebar-foreground/70",
+            )}
+          >
+            <Icon className="h-3.5 w-3.5" />
+            <span>{label}</span>
+          </button>
+        );
+      })}
     </div>
   );
 }

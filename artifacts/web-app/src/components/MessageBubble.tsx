@@ -296,11 +296,7 @@ function MessageBubbleImpl({ message }: MessageBubbleProps) {
               </span>
             ) : (
               <>
-                {meta.provider && (
-                  <span className="rounded-full bg-muted/60 px-2 py-0.5 font-medium">
-                    Ezbo AI
-                  </span>
-                )}
+                {/* Brand pill removed per user request — was redundant under every message. */}
                 {latency && <span>{latency}</span>}
                 {totalTokens > 0 && <span>· {totalTokens.toLocaleString()} tokens</span>}
               </>
