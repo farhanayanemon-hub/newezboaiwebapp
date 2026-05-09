@@ -133,6 +133,16 @@ function AttachmentCard({ att }: { att: MessageAttachment }) {
   );
 }
 
+// Strip provider/model names from error strings so users only ever see Ezbo AI branding.
+function sanitizeProviderError(raw: string): string {
+  if (!raw) return "Something went wrong. Please try again.";
+  const providerPattern = /\b(openai|anthropic|claude|gpt[-\s]?\d[\w.-]*|gpt|chatgpt|google|gemini|mistral|llama|deepseek|xai|grok|cohere|together(ai)?|groq|perplexity|azure[-\s]?openai|bedrock|vertex(ai)?|huggingface|ollama|replicate|fireworks|elevenlabs)\b/gi;
+  const cleaned = raw.replace(providerPattern, "Ezbo AI");
+  // Collapse repeated brand mentions and tidy whitespace.
+  return cleaned.replace(/(Ezbo AI[\s:.-]*)+/g, "Ezbo AI ").replace(/\s+/g, " ").trim() || "Something went wrong. Please try again.";
+}
+
+
 function MessageBubbleImpl({ message }: MessageBubbleProps) {
   const [copied, setCopied] = useState(false);
   const { resolvedTheme } = useTheme();
@@ -282,13 +292,13 @@ function MessageBubbleImpl({ message }: MessageBubbleProps) {
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground/80">
             {meta.error ? (
               <span className="rounded-full bg-destructive/10 px-2 py-0.5 font-medium text-destructive">
-                {meta.error}
+                {sanitizeProviderError(meta.error)}
               </span>
             ) : (
               <>
                 {meta.provider && (
                   <span className="rounded-full bg-muted/60 px-2 py-0.5 font-medium">
-                    via {meta.provider}{meta.model ? ` · ${meta.model}` : ""}
+                    Ezbo AI
                   </span>
                 )}
                 {latency && <span>{latency}</span>}
