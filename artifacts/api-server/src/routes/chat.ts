@@ -250,7 +250,7 @@ router.post("/stream", async (req, res) => {
     if (decision.shouldSearch) {
       const ownerKey = callerUserId
         ? `user:${callerUserId}`
-        : `guest:${(req.ip || "unknown").slice(0, 64)}`;
+        : `guest:${(req.guestId || req.ip || "unknown").slice(0, 64)}`;
       const ownerKind: "user" | "guest" = callerUserId ? "user" : "guest";
       try {
         const out = await runWebSearch({

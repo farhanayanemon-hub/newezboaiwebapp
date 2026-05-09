@@ -40,11 +40,16 @@ async function ensureRow() {
     .where(eq(webSearchConfigTable.id, 1))
     .limit(1);
   if (existing) return existing;
-  const [created] = await db
+  await db
     .insert(webSearchConfigTable)
     .values({ id: 1 })
-    .returning();
-  return created!;
+    .onConflictDoNothing();
+  const [row] = await db
+    .select()
+    .from(webSearchConfigTable)
+    .where(eq(webSearchConfigTable.id, 1))
+    .limit(1);
+  return row!;
 }
 
 router.get("/", async (_req, res) => {
